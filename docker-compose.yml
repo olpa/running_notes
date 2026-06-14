@@ -1,0 +1,10 @@
+services:
+  dovecot:
+    image: dovecot/dovecot:latest
+    ports:
+      - "143:143"   # IMAP
+      - "993:993"   # IMAPS
+    volumes:
+      - ./dovecot/config:/etc/dovecot/conf.d
+      - ./maildir:/var/mail/voiceinbox
+    restart: unless-stopped
