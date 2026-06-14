@@ -2,3 +2,6 @@
 *~
 # Maildir message files — local data only
 maildir/*
+# Uploaded audio and generated note data
+data/*
+!data/.gitkeep

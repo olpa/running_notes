@@ -1,4 +1,12 @@
 services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
   dovecot:
     image: dovecot/dovecot:latest
     ports:
