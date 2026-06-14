@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# Drop a sample RFC822 message into the Maildir and notify Dovecot.
+# Drop a sample RFC822 message into the Maildir via docker cp and notify Dovecot.
 set -euo pipefail
 
-MAILDIR="$(cd "$(dirname "$0")/.." && pwd)/maildir"
-NEW_DIR="$MAILDIR/new"
+# Support both docker compose (V2) and docker-compose (V1).
+COMPOSE="docker compose"
+if ! docker compose version &>/dev/null; then
+  COMPOSE="docker-compose"
+fi
 
-mkdir -p "$NEW_DIR"
+CONTAINER=$($COMPOSE ps -q dovecot 2>/dev/null)
+if [ -z "$CONTAINER" ]; then
+  echo "Dovecot container not running — start it with: $COMPOSE up -d"
+  exit 1
+fi
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 DATE_RFC2822=$(date -R)
 UNIQUE="${TIMESTAMP//[^0-9]/}.$$"
-FILENAME="$NEW_DIR/${UNIQUE}.voiceinbox"
+TMPFILE=$(mktemp)
 
-cat > "$FILENAME" <<EOF
+cat > "$TMPFILE" <<EOF
 Date: $DATE_RFC2822
 From: voiceinbox@localhost
 To: user@localhost
@@ -24,13 +31,10 @@ Content-Type: text/plain; charset=utf-8
 This is a sample message created by create_sample_message.sh at $TIMESTAMP.
 EOF
 
-echo "Created: $FILENAME"
+docker cp "$TMPFILE" "$CONTAINER:/var/mail/voiceinbox/new/${UNIQUE}.voiceinbox"
+rm "$TMPFILE"
 
-# Tell Dovecot to pick up new messages in the maildir.
-# doveadm runs inside the container; fall back silently if Docker isn't up.
-if docker compose ps dovecot 2>/dev/null | grep -q "running"; then
-  docker compose exec dovecot doveadm force-resync -u voiceinbox INBOX
-  echo "Dovecot notified."
-else
-  echo "Dovecot container not running — start it with: docker compose up -d"
-fi
+echo "Copied message to container."
+
+docker exec "$CONTAINER" doveadm force-resync -u voiceinbox INBOX
+echo "Dovecot notified."
