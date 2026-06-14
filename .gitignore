@@ -1,4 +1,4 @@
+*.swp
+*~
 # Maildir message files — local data only
-maildir/new/*
-maildir/cur/*
-maildir/tmp/*
+maildir/*
