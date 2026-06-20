@@ -1,14 +1,42 @@
 import json
+import smtplib
 import uuid
 from datetime import datetime, timezone
+from email.mime.audio import MIMEAudio
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import format_datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 DATA_DIR = Path("/data")
+LMTP_HOST = "dovecot"
+LMTP_PORT = 24
+MAIL_FROM = "voiceinbox@voiceinbox.local"
+MAIL_TO = "voiceinbox"
 
 app = FastAPI()
+
+
+def deliver_via_lmtp(note_id: str, created_at: datetime, audio_bytes: bytes):
+    msg = MIMEMultipart()
+    msg["From"] = MAIL_FROM
+    msg["To"] = MAIL_TO
+    msg["Subject"] = f"Voice note {created_at.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    msg["Message-ID"] = f"<note-{note_id}-audio@voiceinbox.local>"
+    msg["Date"] = format_datetime(created_at)
+
+    body = MIMEText("Voice note recorded via running-notes.", "plain")
+    msg.attach(body)
+
+    attachment = MIMEAudio(audio_bytes, "webm")
+    attachment.add_header("Content-Disposition", "attachment", filename="audio.webm")
+    msg.attach(attachment)
+
+    with smtplib.LMTP(LMTP_HOST, LMTP_PORT) as lmtp:
+        lmtp.sendmail(MAIL_FROM, [MAIL_TO], msg.as_bytes())
 
 
 @app.get("/health")
@@ -22,13 +50,17 @@ async def record(file: UploadFile):
     note_dir = DATA_DIR / note_id
     note_dir.mkdir(parents=True, exist_ok=True)
 
+    audio_bytes = await file.read()
     audio_path = note_dir / "audio.webm"
-    audio_path.write_bytes(await file.read())
+    audio_path.write_bytes(audio_bytes)
 
-    created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    subject = f"Voice note {created_at}"
-    metadata = {"id": note_id, "created_at": created_at, "subject": subject}
+    created_at = datetime.now(timezone.utc)
+    created_at_str = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    subject = f"Voice note {created_at_str}"
+    metadata = {"id": note_id, "created_at": created_at_str, "subject": subject}
     (note_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+
+    deliver_via_lmtp(note_id, created_at, audio_bytes)
 
     return metadata
 
