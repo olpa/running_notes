@@ -1,8 +1,18 @@
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    image: running-notes-be
     volumes:
       - ./data:/data
     restart: unless-stopped
