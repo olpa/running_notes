@@ -12,6 +12,7 @@ services:
 
   backend:
     build: ./backend
+    image: running-notes-be
     volumes:
       - ./data:/data
     restart: unless-stopped
