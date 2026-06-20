@@ -8,6 +8,8 @@ services:
       - ./frontend:/usr/share/nginx/html:ro
     depends_on:
       - backend
+    networks:
+      - frontend
     restart: unless-stopped
 
   backend:
@@ -15,6 +17,9 @@ services:
     image: running-notes-be
     volumes:
       - ./data:/data
+    networks:
+      - frontend
+      - backend
     restart: unless-stopped
 
   dovecot:
@@ -25,4 +30,11 @@ services:
     volumes:
       - ./dovecot/config:/etc/dovecot/conf.d
       - ./maildir:/var/mail/voiceinbox
+    networks:
+      - backend
     restart: unless-stopped
+
+networks:
+  frontend:
+  backend:
+    internal: true
