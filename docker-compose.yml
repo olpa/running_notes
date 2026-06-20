@@ -31,6 +31,7 @@ services:
       - ./dovecot/config:/etc/dovecot/conf.d
       - ./maildir:/var/mail/voiceinbox
     networks:
+      - frontend
       - backend
     restart: unless-stopped
 
