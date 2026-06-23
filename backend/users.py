@@ -1,4 +1,5 @@
 import re
+import shutil
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -50,7 +51,11 @@ def create_user(email: str) -> dict:
     except sqlite3.IntegrityError as exc:
         raise UserAlreadyExistsError(normalized_email) from exc
 
-    _provision_maildir(user_id)
+    try:
+        _provision_maildir(user_id)
+    except OSError:
+        _delete_user(user_id)
+        raise
 
     return {
         "id": user_id,
@@ -70,6 +75,12 @@ def _normalize_email(email: str) -> str:
 
 def _disabled_password_hash() -> str:
     return "!"
+
+
+def _delete_user(user_id: str) -> None:
+    with connect() as conn:
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    shutil.rmtree(MAIL_ROOT / user_id, ignore_errors=True)
 
 
 def _provision_maildir(user_id: str) -> None:
