@@ -18,13 +18,11 @@ Afterwards, point the IMAP client to the `localhost`. The credentials are `voice
 
 ## Create a user
 
-The MVP2 user database is initialized when the backend starts. Create a user with:
+Create the initial user from the command line before exposing the deployment:
 
 ```
-curl -X POST http://localhost/users \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"user@example.com"}'
+docker compose run --rm backend python admin.py create-user user@example.com
 ```
 
-This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. The generated IMAP username is returned in the response. IMAP login remains disabled until the IMAP credential ticket is implemented.
+This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. The generated IMAP username is printed as JSON. IMAP login remains disabled until the IMAP credential ticket is implemented.
 
