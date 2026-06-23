@@ -9,11 +9,9 @@ from email.utils import format_datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
-from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
 from database import initialize_database
-from users import InvalidEmailError, UserAlreadyExistsError, create_user
 
 DATA_DIR = Path("/data")
 LMTP_HOST = "dovecot"
@@ -22,10 +20,6 @@ MAIL_FROM = "voiceinbox@voiceinbox.local"
 MAIL_TO = "voiceinbox"
 
 app = FastAPI()
-
-
-class CreateUserRequest(BaseModel):
-    email: str
 
 
 @app.on_event("startup")
@@ -55,16 +49,6 @@ def deliver_via_lmtp(note_id: str, created_at: datetime, audio_bytes: bytes):
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-@app.post("/users", status_code=201)
-def create_user_endpoint(request: CreateUserRequest):
-    try:
-        return create_user(request.email)
-    except InvalidEmailError:
-        raise HTTPException(status_code=422, detail="Invalid email")
-    except UserAlreadyExistsError:
-        raise HTTPException(status_code=409, detail="User already exists")
 
 
 @app.post("/record", status_code=201)
