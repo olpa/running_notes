@@ -11,6 +11,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from database import initialize_database
+
 DATA_DIR = Path("/data")
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
@@ -18,6 +20,11 @@ MAIL_FROM = "voiceinbox@voiceinbox.local"
 MAIL_TO = "voiceinbox"
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+def startup():
+    initialize_database()
 
 
 def deliver_via_lmtp(note_id: str, created_at: datetime, audio_bytes: bytes):
