@@ -5,3 +5,6 @@ maildir/*
 # Uploaded audio and generated note data
 data/*
 !data/.gitkeep
+# Python generated files
+__pycache__/
+*.py[cod]

@@ -17,6 +17,7 @@ services:
     image: running-notes-be
     volumes:
       - ./data:/data
+      - ./state:/state
     networks:
       - frontend
       - backend
@@ -30,6 +31,7 @@ services:
     volumes:
       - ./dovecot/config:/etc/dovecot/conf.d
       - ./maildir:/var/mail/voiceinbox
+      - ./state:/state:ro
     networks:
       - frontend
       - backend
