@@ -13,7 +13,7 @@ The app is a small Docker Compose stack:
 - `maildir/` is the persistent mailbox directory shared by backend and Dovecot.
 - `data/` stores uploaded note/audio data.
 
-The old local demo still mentions `voiceinbox/voiceinbox` in places because Dovecot SQL auth has not been implemented yet. Treat that as legacy MVP1 behavior.
+Dovecot authentication is configured to use SQLite users. The old `voiceinbox/voiceinbox` demo credentials should be treated as removed legacy MVP1 behavior.
 
 ## User Database
 
@@ -33,7 +33,7 @@ Current `users` columns:
 - `imap_username`: unique IMAP login name.
 - `imap_password_hash`: Dovecot-compatible IMAP password hash. New and reset credentials are stored as `{SHA512-CRYPT}` hashes. The legacy disabled value is `!`.
 
-There is intentionally no `home_dir` or `maildir_path` column. Dovecot should derive mailbox paths from stable user identity during the SQL auth work.
+There is intentionally no `home_dir` or `maildir_path` column. Dovecot SQL userdb derives mailbox paths from stable user identity.
 
 ## User Provisioning
 
@@ -77,7 +77,7 @@ The host-visible path is:
 maildir/users/<user-id>
 ```
 
-Dovecot is configured to use numeric `mail_uid = 5000` and `mail_gid = 5000`. The backend uses the same numeric values when creating Maildirs. Future Dovecot SQL userdb work must return or derive each user mailbox path as `/var/mail/voiceinbox/users/<user-id>` so users do not share one mailbox.
+Dovecot is configured to use numeric `mail_uid = 5000` and `mail_gid = 5000`. The backend uses the same numeric values when creating Maildirs. SQL userdb returns each user home and `mail_path` as `/var/mail/voiceinbox/users/<user-id>` so users do not share one mailbox.
 
 ## Ticket #14: IMAP Credentials
 
@@ -99,21 +99,28 @@ docker compose run --rm backend python admin.py create-user user@example.com
 docker compose run --rm backend python admin.py reset-imap-password user@example.com
 ```
 
-Full authentication verification still depends on Dovecot SQL auth, because static `voiceinbox/voiceinbox` auth has not been removed yet.
+Full authentication verification now means running `doveadm auth test` and `doveadm user` inside the Dovecot container against generated credentials.
 
 ## Ticket #13: Dovecot SQL Authentication
 
-The next ticket should replace the hardcoded IMAP account with SQL-backed users.
+Ticket `#13` / `MVP2-003: Configure Dovecot SQL Authentication` is implemented in configuration.
 
-Ticket `#13` should:
+Current behavior:
 
-- confirm Dovecot SQL/SQLite support;
-- configure Dovecot SQL passdb against `/state/users.db`;
-- configure SQL userdb for the derived Maildir location;
-- remove static `voiceinbox/voiceinbox` auth;
-- reject inactive, unknown, and invalid-password users;
-- verify `doveadm auth test <imap_username> <password>` works for generated credentials;
-- verify `doveadm user <imap_username>` resolves distinct homes/mailboxes.
+- `dovecot/config/10-auth.conf` uses SQLite SQL auth against `/state/users.db`;
+- SQL passdb selects only active users with non-disabled password hashes;
+- SQL userdb selects only active users with non-disabled password hashes and returns numeric UID/GID `5000:5000`;
+- SQL userdb derives `home` and `mail_path` as `/var/mail/voiceinbox/users/<user-id>`;
+- static `voiceinbox/voiceinbox` authentication has been removed.
+
+Expected verification once Docker access is available:
+
+```bash
+docker compose exec dovecot doveadm auth test <imap_username> <imap_password>
+docker compose exec dovecot doveadm user <imap_username>
+```
+
+Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
 
 ## Development Notes
 

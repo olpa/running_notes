@@ -14,7 +14,7 @@ docker compose up
 ./scripts/create_sample_message.sh 
 ```
 
-Afterwards, point the IMAP client to the `localhost`. The credentials are `voiceinbox/voiceinbox`.
+Afterwards, create a user and point the IMAP client to `localhost`. Use the generated IMAP username and one-time password printed by the admin command.
 
 ## Create a user
 
@@ -36,3 +36,13 @@ docker compose run --rm backend python admin.py reset-imap-password user@example
 
 The reset command prints the new plaintext password once and replaces the previous stored hash.
 
+## Verify IMAP authentication
+
+After creating a user, verify Dovecot resolves the generated credentials through SQLite:
+
+```
+docker compose exec dovecot doveadm auth test <imap_username> <imap_password>
+docker compose exec dovecot doveadm user <imap_username>
+```
+
+Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
