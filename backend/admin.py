@@ -3,7 +3,13 @@ import json
 import sys
 
 from database import initialize_database
-from users import InvalidEmailError, UserAlreadyExistsError, create_user
+from users import (
+    InvalidEmailError,
+    UserAlreadyExistsError,
+    UserNotFoundError,
+    create_user,
+    reset_imap_password,
+)
 
 
 def main() -> int:
@@ -16,6 +22,15 @@ def main() -> int:
     )
     create_user_parser.add_argument("email", help="User email address")
 
+    reset_password_parser = subparsers.add_parser(
+        "reset-imap-password",
+        help="Generate a new IMAP password for a user",
+    )
+    reset_password_parser.add_argument(
+        "identifier",
+        help="User email address or IMAP username",
+    )
+
     args = parser.parse_args()
 
     if args.command == "create-user":
@@ -27,6 +42,17 @@ def main() -> int:
             return 2
         except UserAlreadyExistsError:
             print("user already exists", file=sys.stderr)
+            return 1
+
+        print(json.dumps(user, indent=2))
+        return 0
+
+    if args.command == "reset-imap-password":
+        initialize_database()
+        try:
+            user = reset_imap_password(args.identifier)
+        except UserNotFoundError:
+            print("user not found", file=sys.stderr)
             return 1
 
         print(json.dumps(user, indent=2))
