@@ -15,9 +15,13 @@ services:
   backend:
     build: ./backend
     image: running-notes-be
+    environment:
+      MAIL_UID: "5000"
+      MAIL_GID: "5000"
     volumes:
       - ./data:/data
       - ./state:/state
+      - ./maildir:/var/mail/voiceinbox
     networks:
       - frontend
       - backend

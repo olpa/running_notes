@@ -1,7 +1,8 @@
 *.swp
 *~
-# Maildir message files — local data only
+# Maildir message files - local data only
 maildir/*
+!maildir/.gitkeep
 # Uploaded audio and generated note data
 data/*
 !data/.gitkeep
