@@ -24,5 +24,5 @@ Create the initial user from the command line before exposing the deployment:
 docker compose run --rm backend python admin.py create-user user@example.com
 ```
 
-This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. The generated IMAP username is printed as JSON. IMAP login remains disabled until the IMAP credential ticket is implemented.
+This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `5000:5000`. The generated IMAP username is printed as JSON. IMAP login remains disabled until the IMAP credential ticket is implemented.
 

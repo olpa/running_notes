@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import sqlite3
@@ -7,7 +8,9 @@ from pathlib import Path
 
 from database import connect
 
-MAIL_ROOT = Path("/var/mail/voiceinbox/users")
+MAIL_ROOT = Path(os.environ.get("MAIL_ROOT", "/var/mail/voiceinbox/users"))
+MAIL_UID = int(os.environ.get("MAIL_UID", "5000"))
+MAIL_GID = int(os.environ.get("MAIL_GID", "5000"))
 IMAP_USERNAME_SUFFIX = "voiceinbox.local"
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -85,5 +88,15 @@ def _delete_user(user_id: str) -> None:
 
 def _provision_maildir(user_id: str) -> None:
     maildir = MAIL_ROOT / user_id
+    maildir.mkdir(parents=True, exist_ok=True)
+    _set_maildir_permissions(maildir)
+
     for child in ("cur", "new", "tmp"):
-        (maildir / child).mkdir(parents=True, exist_ok=True)
+        child_path = maildir / child
+        child_path.mkdir(parents=True, exist_ok=True)
+        _set_maildir_permissions(child_path)
+
+
+def _set_maildir_permissions(path: Path) -> None:
+    os.chown(path, MAIL_UID, MAIL_GID)
+    path.chmod(0o700)
