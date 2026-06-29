@@ -31,7 +31,7 @@ Current `users` columns:
 - `created_at`: UTC creation timestamp.
 - `status`: user state, currently expected to support active vs disabled authentication later.
 - `imap_username`: unique IMAP login name.
-- `imap_password_hash`: intended Dovecot-compatible password hash. It is currently set to `!`, meaning login is disabled until ticket `#15`.
+- `imap_password_hash`: Dovecot-compatible IMAP password hash. New and reset credentials are stored as `{SHA512-CRYPT}` hashes. The legacy disabled value is `!`.
 
 There is intentionally no `home_dir` or `maildir_path` column. Dovecot should derive mailbox paths from stable user identity during the SQL auth work.
 
@@ -52,7 +52,8 @@ This command:
 - assigns a generated `imap_username`;
 - creates a Maildir under `maildir/users/<user-id>`;
 - sets Maildir ownership using `MAIL_UID` and `MAIL_GID`, currently `5000:5000`;
-- leaves `imap_password_hash` disabled as `!`.
+- generates a one-time plaintext IMAP password and prints it in the JSON output;
+- stores only the `{SHA512-CRYPT}` hash in `imap_password_hash`.
 
 Relevant files:
 
@@ -78,38 +79,40 @@ maildir/users/<user-id>
 
 Dovecot is configured to use numeric `mail_uid = 5000` and `mail_gid = 5000`. The backend uses the same numeric values when creating Maildirs. Future Dovecot SQL userdb work must return or derive each user mailbox path as `/var/mail/voiceinbox/users/<user-id>` so users do not share one mailbox.
 
-## Ticket #15: IMAP Credentials
+## Ticket #14: IMAP Credentials
 
-The next ticket should make IMAP credentials real. Right now users cannot authenticate because `imap_password_hash` is deliberately disabled.
+Ticket `#14` / `MVP2-004: Generate And Manage IMAP Credentials` is implemented.
 
-Expected direction:
+Current behavior:
 
-- add an admin command to generate or reset an IMAP password for a user;
-- store only a Dovecot-compatible password hash in `users.imap_password_hash`;
-- print the generated plaintext password once, at creation/reset time;
-- do not store plaintext passwords;
-- keep disabled/inactive users unable to authenticate once Dovecot SQL auth is added;
-- choose a password hash format that Dovecot can verify from SQL in ticket `#14`.
+- `create-user` generates a random IMAP password when a user is created;
+- the plaintext password is printed once in the admin CLI JSON output;
+- plaintext passwords are never stored;
+- `users.imap_password_hash` stores `{SHA512-CRYPT}` hashes that Dovecot SQL passdb can return directly;
+- `reset-imap-password` accepts either user email or IMAP username;
+- resetting a password replaces the stored hash, so the previous password should stop working once SQL auth is wired up.
 
-The natural command shape would be something like:
+Current commands:
 
 ```bash
+docker compose run --rm backend python admin.py create-user user@example.com
 docker compose run --rm backend python admin.py reset-imap-password user@example.com
 ```
 
-or, if preferred, by `imap_username`. Use the existing admin CLI style rather than adding a public HTTP endpoint.
+Full authentication verification still depends on Dovecot SQL auth, because static `voiceinbox/voiceinbox` auth has not been removed yet.
 
-## Ticket #14 Comes After #15
+## Ticket #13: Dovecot SQL Authentication
 
-Do not expect `doveadm auth test` to pass before `#15`. Dovecot SQL auth needs real credential hashes to test against.
+The next ticket should replace the hardcoded IMAP account with SQL-backed users.
 
-Ticket `#14` should later:
+Ticket `#13` should:
 
 - confirm Dovecot SQL/SQLite support;
 - configure Dovecot SQL passdb against `/state/users.db`;
 - configure SQL userdb for the derived Maildir location;
 - remove static `voiceinbox/voiceinbox` auth;
 - reject inactive, unknown, and invalid-password users;
+- verify `doveadm auth test <imap_username> <password>` works for generated credentials;
 - verify `doveadm user <imap_username>` resolves distinct homes/mailboxes.
 
 ## Development Notes
