@@ -14,7 +14,12 @@ MAIL_ROOT = Path(os.environ.get("MAIL_ROOT", "/var/mail/voiceinbox/users"))
 MAIL_UID = int(os.environ.get("MAIL_UID", "5000"))
 MAIL_GID = int(os.environ.get("MAIL_GID", "5000"))
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-IMAP_PASSWORD_BYTES = 18
+IMAP_PASSWORD_DIGITS = 4
+IMAP_PASSWORD_CHUNKS = 3
+IMAP_PASSWORD_SYLLABLES_PER_CHUNK = 3
+IMAP_PASSWORD_ONSETS = ("b", "d", "f", "g", "k", "l", "m", "n", "p", "r", "s", "t", "v", "z")
+IMAP_PASSWORD_VOWELS = ("a", "e", "i", "o", "u")
+IMAP_PASSWORD_CODAS = ("", "l", "m", "n", "r", "s", "t")
 
 # Dovecot can verify this directly when SQL passdb returns the stored value.
 IMAP_PASSWORD_SCHEME = "{SHA512-CRYPT}"
@@ -116,7 +121,19 @@ def _disabled_password_hash() -> str:
 
 
 def _generate_imap_password() -> str:
-    return secrets.token_urlsafe(IMAP_PASSWORD_BYTES)
+    chunks = [_generate_pronounceable_chunk() for _ in range(IMAP_PASSWORD_CHUNKS)]
+    digits = f"{secrets.randbelow(10 ** IMAP_PASSWORD_DIGITS):0{IMAP_PASSWORD_DIGITS}d}"
+    return "-".join(chunks + [digits])
+
+
+def _generate_pronounceable_chunk() -> str:
+    syllables = (
+        secrets.choice(IMAP_PASSWORD_ONSETS)
+        + secrets.choice(IMAP_PASSWORD_VOWELS)
+        + secrets.choice(IMAP_PASSWORD_CODAS)
+        for _ in range(IMAP_PASSWORD_SYLLABLES_PER_CHUNK)
+    )
+    return "".join(syllables)
 
 
 def _hash_imap_password(password: str) -> str:

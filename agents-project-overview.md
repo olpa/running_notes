@@ -52,7 +52,7 @@ This command:
 - assigns `imap_username` to the normalized user email;
 - creates a Maildir under `maildir/users/<user-id>`;
 - sets Maildir ownership using `MAIL_UID` and `MAIL_GID`, currently `5000:5000`;
-- generates a one-time plaintext IMAP password and prints it in the JSON output;
+- generates a one-time pronounceable IMAP password and prints it in the JSON output;
 - stores only the `{SHA512-CRYPT}` hash in `imap_password_hash`.
 
 Relevant files:
@@ -85,7 +85,7 @@ Ticket `#14` / `MVP2-004: Generate And Manage IMAP Credentials` is implemented.
 
 Current behavior:
 
-- `create-user` generates a random IMAP password when a user is created;
+- `create-user` generates a random pronounceable IMAP password when a user is created, formatted as three syllabic chunks plus four digits, for example `maviro-luneta-sokami-4827`;
 - the plaintext password is printed once in the admin CLI JSON output;
 - plaintext passwords are never stored;
 - `users.imap_password_hash` stores `{SHA512-CRYPT}` hashes that Dovecot SQL passdb can return directly;
