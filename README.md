@@ -14,7 +14,7 @@ docker compose up
 ./scripts/create_sample_message.sh 
 ```
 
-Afterwards, point the IMAP client to the `localhost`. The credentials are `voiceinbox/voiceinbox`.
+Afterwards, create a user and point the IMAP client to `localhost`. Use the user email as the IMAP username and the one-time password printed by the admin command.
 
 ## Create a user
 
@@ -24,7 +24,7 @@ Create the initial user from the command line before exposing the deployment:
 docker compose run --rm backend python admin.py create-user user@example.com
 ```
 
-This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `5000:5000`. The generated IMAP username and one-time plaintext IMAP password are printed as JSON. Plaintext IMAP passwords are not stored.
+This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `5000:5000`. The IMAP username, equal to the normalized user email, and one-time pronounceable IMAP password are printed as JSON. Plaintext IMAP passwords are not stored.
 
 IMAP password hashes are stored in Dovecot-compatible `{SHA512-CRYPT}` format in `users.imap_password_hash`, so SQL passdb can return the stored value directly.
 
@@ -36,3 +36,13 @@ docker compose run --rm backend python admin.py reset-imap-password user@example
 
 The reset command prints the new plaintext password once and replaces the previous stored hash.
 
+## Verify IMAP authentication
+
+After creating a user, verify Dovecot resolves the generated credentials through SQLite:
+
+```
+docker compose exec dovecot doveadm auth test <imap_username> <imap_password>
+docker compose exec dovecot doveadm user <imap_username>
+```
+
+Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
