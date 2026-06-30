@@ -19,7 +19,6 @@ IMAP_PASSWORD_CHUNKS = 3
 IMAP_PASSWORD_SYLLABLES_PER_CHUNK = 3
 IMAP_PASSWORD_ONSETS = ("b", "d", "f", "g", "k", "l", "m", "n", "p", "r", "s", "t", "v", "z")
 IMAP_PASSWORD_VOWELS = ("a", "e", "i", "o", "u")
-IMAP_PASSWORD_CODAS = ("", "l", "m", "n", "r", "s", "t")
 
 # Dovecot can verify this directly when SQL passdb returns the stored value.
 IMAP_PASSWORD_SCHEME = "{SHA512-CRYPT}"
@@ -130,7 +129,6 @@ def _generate_pronounceable_chunk() -> str:
     syllables = (
         secrets.choice(IMAP_PASSWORD_ONSETS)
         + secrets.choice(IMAP_PASSWORD_VOWELS)
-        + secrets.choice(IMAP_PASSWORD_CODAS)
         for _ in range(IMAP_PASSWORD_SYLLABLES_PER_CHUNK)
     )
     return "".join(syllables)
