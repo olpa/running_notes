@@ -30,7 +30,7 @@ Current `users` columns:
 - `email`: unique user email.
 - `created_at`: UTC creation timestamp.
 - `status`: user state, currently expected to support active vs disabled authentication later.
-- `imap_username`: unique IMAP login name.
+- `imap_username`: unique IMAP login name, equal to the normalized user email.
 - `imap_password_hash`: Dovecot-compatible IMAP password hash. New and reset credentials are stored as `{SHA512-CRYPT}` hashes. The legacy disabled value is `!`.
 
 There is intentionally no `home_dir` or `maildir_path` column. Dovecot SQL userdb derives mailbox paths from stable user identity.
@@ -49,7 +49,7 @@ This command:
 
 - initializes the SQLite database if needed;
 - creates a row in `users`;
-- assigns a generated `imap_username`;
+- assigns `imap_username` to the normalized user email;
 - creates a Maildir under `maildir/users/<user-id>`;
 - sets Maildir ownership using `MAIL_UID` and `MAIL_GID`, currently `5000:5000`;
 - generates a one-time plaintext IMAP password and prints it in the JSON output;
@@ -89,7 +89,7 @@ Current behavior:
 - the plaintext password is printed once in the admin CLI JSON output;
 - plaintext passwords are never stored;
 - `users.imap_password_hash` stores `{SHA512-CRYPT}` hashes that Dovecot SQL passdb can return directly;
-- `reset-imap-password` accepts either user email or IMAP username;
+- `reset-imap-password` accepts the user email / IMAP username;
 - resetting a password replaces the stored hash, so the previous password should stop working once SQL auth is wired up.
 
 Current commands:

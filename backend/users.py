@@ -13,7 +13,6 @@ from database import connect
 MAIL_ROOT = Path(os.environ.get("MAIL_ROOT", "/var/mail/voiceinbox/users"))
 MAIL_UID = int(os.environ.get("MAIL_UID", "5000"))
 MAIL_GID = int(os.environ.get("MAIL_GID", "5000"))
-IMAP_USERNAME_SUFFIX = "voiceinbox.local"
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 IMAP_PASSWORD_BYTES = 18
 
@@ -37,7 +36,7 @@ def create_user(email: str) -> dict:
     normalized_email = _normalize_email(email)
     user_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    imap_username = f"{user_id}@{IMAP_USERNAME_SUFFIX}"
+    imap_username = normalized_email
     imap_password = _generate_imap_password()
     imap_password_hash = _hash_imap_password(imap_password)
 
