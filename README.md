@@ -50,3 +50,30 @@ Unknown users, inactive users, disabled password hashes, and invalid passwords s
 ## Web session configuration
 
 OAuth web sessions require `SESSION_SECRET`. Local HTTP development should also set `SESSION_COOKIE_SECURE=false`; production should leave secure cookies enabled.
+
+OAuth login can be configured with Google and Microsoft client credentials through environment variables. `PUBLIC_BASE_URL` defaults to `http://localhost` in local Compose and is used to derive callback URLs unless provider-specific redirect URI variables are set.
+
+Required for sessions:
+
+```
+SESSION_SECRET=<random-secret>
+```
+
+Optional provider configuration:
+
+```
+PUBLIC_BASE_URL=http://localhost
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost/auth/callback/google
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+MICROSOFT_REDIRECT_URI=http://localhost/auth/callback/microsoft
+```
+
+Login start endpoints:
+
+```
+/auth/login/google
+/auth/login/microsoft
+```

@@ -8,11 +8,20 @@ from email.mime.text import MIMEText
 from email.utils import format_datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from database import initialize_database
-from sessions import clear_session, get_session_user_id
+from oauth import (
+    OAuthConfigurationError,
+    UnknownOAuthProviderError,
+    build_redirect_uri,
+    create_oauth_registry,
+    get_oauth_client,
+    session_cookie_secure,
+    session_secret,
+)
 from users import get_user_by_id
 
 DATA_DIR = Path("/data")
@@ -22,6 +31,13 @@ MAIL_FROM = "voiceinbox@voiceinbox.local"
 MAIL_TO = "voiceinbox"
 
 app = FastAPI()
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=session_secret(),
+    https_only=session_cookie_secure(),
+    same_site="lax",
+)
+oauth = create_oauth_registry()
 
 
 @app.on_event("startup")
@@ -55,7 +71,7 @@ def health():
 
 @app.get("/me")
 def me(request: Request):
-    user_id = get_session_user_id(request)
+    user_id = request.session.get("user_id")
     if user_id is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -66,11 +82,23 @@ def me(request: Request):
     return {"user": user}
 
 
+@app.get("/auth/login/{provider}")
+async def oauth_login(provider: str, request: Request):
+    try:
+        client = get_oauth_client(oauth, provider)
+        redirect_uri = build_redirect_uri(provider)
+    except UnknownOAuthProviderError:
+        raise HTTPException(status_code=404, detail="Unknown OAuth provider")
+    except OAuthConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return await client.authorize_redirect(request, redirect_uri)
+
+
 @app.post("/auth/logout", status_code=204)
-def logout(response: Response):
-    clear_session(response)
-    response.status_code = 204
-    return response
+def logout(request: Request):
+    request.session.clear()
+    return None
 
 
 @app.post("/record", status_code=201)

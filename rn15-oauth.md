@@ -40,8 +40,8 @@ Endpoints:
 
 Core helpers/modules to consider:
 
-- `backend/oauth.py`: provider config, OAuth URL construction, token exchange, userinfo fetch.
-- `backend/sessions.py`: session creation, lookup, deletion, cookie settings.
+- `backend/oauth.py`: Authlib provider registry and redirect URI configuration.
+- Starlette `SessionMiddleware`: signed cookie sessions for OAuth state and app login state.
 - `backend/users.py`: add lookup helpers needed by OAuth if they do not belong in a new module.
 
 Environment variables:
@@ -77,8 +77,8 @@ Provider endpoints to verify during implementation:
 
 ## Open Decisions
 
-- Session storage: signed cookie only vs server-side SQLite session table.
-- OAuth library: use a dependency such as Authlib/httpx, or implement explicit OAuth requests with a small HTTP client.
+- Session storage: use Starlette signed-cookie sessions through `SessionMiddleware`.
+- OAuth library: use Authlib with HTTPX via the Starlette integration.
 - Whether first login should display the generated IMAP password immediately or defer that to a later account/setup page.
 - Whether unverified provider emails should be rejected.
 - Production cookie policy: exact `secure`, `httponly`, `samesite`, and max-age settings.
@@ -86,13 +86,13 @@ Provider endpoints to verify during implementation:
 ## Implementation Checklist
 
 - [x] Inspect current `oauth_identities` schema and decide whether it needs migration.
-- [ ] Add backend dependencies if needed.
+- [x] Add backend dependencies if needed.
 - [x] Add session cookie configuration loading.
-- [ ] Add OAuth provider configuration loading.
+- [x] Add OAuth provider configuration loading.
 - [x] Add session creation/current-user/logout helpers.
-- [ ] Add OAuth login-start endpoint for Google.
+- [x] Add OAuth login-start endpoint for Google.
 - [ ] Add OAuth callback endpoint for Google.
-- [ ] Add OAuth login-start endpoint for Microsoft.
+- [x] Add OAuth login-start endpoint for Microsoft.
 - [ ] Add OAuth callback endpoint for Microsoft.
 - [ ] Add `oauth_identities` lookup/linking logic.
 - [ ] Reuse `create_user(email)` for first-login user creation.
@@ -114,3 +114,4 @@ Provider endpoints to verify during implementation:
 
 - 2026-06-30: Created implementation planning document.
 - 2026-06-30: Added signed-cookie session helpers, current-user lookup, `/me`, and logout endpoints.
+- 2026-07-01: Switched to Authlib plus Starlette `SessionMiddleware`, removed custom session signing, and added Google/Microsoft login-start endpoints.
