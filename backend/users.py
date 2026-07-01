@@ -46,7 +46,7 @@ def serialize_user(row: sqlite3.Row) -> dict:
 
 
 def create_user(email: str) -> dict:
-    normalized_email = _normalize_email(email)
+    normalized_email = normalize_email(email)
     user_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     imap_username = normalized_email
@@ -133,7 +133,7 @@ def get_user_by_id(user_id: str) -> dict | None:
     return serialize_user(row)
 
 
-def _normalize_email(email: str) -> str:
+def normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if not EMAIL_RE.match(normalized):
         raise InvalidEmailError(email)

@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from authlib.integrations.starlette_client import OAuth
 
@@ -9,6 +10,10 @@ MICROSOFT_METADATA_URL = (
     "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"
 )
 OAUTH_SCOPE = "openid email profile"
+SESSION_COOKIE_NAME = "running_notes_session"
+SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
+SESSION_SAME_SITE = "lax"
+MIN_SESSION_SECRET_LENGTH = 32
 
 
 class UnknownOAuthProviderError(ValueError):
@@ -23,7 +28,7 @@ class OAuthUserInfoError(ValueError):
     pass
 
 
-def extract_userinfo_identity(provider: str, userinfo: dict) -> tuple[str, str]:
+def extract_userinfo_identity(provider: str, userinfo: dict) -> tuple[str, str, bool]:
     _validate_provider(provider)
 
     provider_subject = userinfo.get("sub")
@@ -34,11 +39,11 @@ def extract_userinfo_identity(provider: str, userinfo: dict) -> tuple[str, str]:
     if not isinstance(email, str) or not email:
         raise OAuthUserInfoError("OAuth provider did not return an email")
 
-    email_verified = userinfo.get("email_verified")
-    if email_verified is False:
+    email_verified = _email_verified(provider, userinfo)
+    if not email_verified:
         raise OAuthUserInfoError("OAuth provider did not verify the email")
 
-    return provider_subject, email
+    return provider_subject, email, email_verified
 
 
 def create_oauth_registry() -> OAuth:
@@ -89,12 +94,46 @@ def build_redirect_uri(provider: str) -> str:
 
 
 def session_secret() -> str:
-    return _required_env("SESSION_SECRET")
+    secret = _required_env("SESSION_SECRET")
+    if len(secret) < MIN_SESSION_SECRET_LENGTH:
+        raise OAuthConfigurationError(
+            f"SESSION_SECRET must be at least {MIN_SESSION_SECRET_LENGTH} characters"
+        )
+    return secret
 
 
 def session_cookie_secure() -> bool:
     value = os.environ.get("SESSION_COOKIE_SECURE", "true").strip().lower()
-    return value not in {"0", "false", "no", "off"}
+    secure = value not in {"0", "false", "no", "off"}
+    if not secure and _app_env() == "production":
+        raise OAuthConfigurationError(
+            "SESSION_COOKIE_SECURE cannot be disabled in production"
+        )
+    return secure
+
+
+def new_session_nonce() -> str:
+    return secrets.token_urlsafe(16)
+
+
+def _email_verified(provider: str, userinfo: dict) -> bool:
+    value = userinfo.get("email_verified")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "true"
+    # Microsoft OIDC userinfo does not consistently include a Google-style
+    # email_verified claim. The account identity itself is still verified by
+    # Microsoft before the authorization code is issued.
+    return provider == "microsoft"
+
+
+def _app_env() -> str:
+    return (
+        os.environ.get("APP_ENV")
+        or os.environ.get("ENVIRONMENT")
+        or "development"
+    ).strip().lower()
 
 
 def _provider_configured(provider: str) -> bool:

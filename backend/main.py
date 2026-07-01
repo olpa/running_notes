@@ -9,6 +9,7 @@ from email.utils import format_datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
+from authlib.integrations.base_client.errors import OAuthError
 from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -17,10 +18,14 @@ from oauth import (
     OAuthConfigurationError,
     OAuthUserInfoError,
     UnknownOAuthProviderError,
+    SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE_SECONDS,
+    SESSION_SAME_SITE,
     build_redirect_uri,
     create_oauth_registry,
     extract_userinfo_identity,
     get_oauth_client,
+    new_session_nonce,
     session_cookie_secure,
     session_secret,
 )
@@ -37,8 +42,11 @@ app = FastAPI()
 app.add_middleware(
     SessionMiddleware,
     secret_key=session_secret(),
+    session_cookie=SESSION_COOKIE_NAME,
+    max_age=SESSION_MAX_AGE_SECONDS,
+    path="/",
+    same_site=SESSION_SAME_SITE,
     https_only=session_cookie_secure(),
-    same_site="lax",
 )
 oauth = create_oauth_registry()
 
@@ -95,6 +103,7 @@ async def oauth_login(provider: str, request: Request):
     except OAuthConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    request.session.clear()
     return await client.authorize_redirect(request, redirect_uri)
 
 
@@ -103,8 +112,12 @@ async def oauth_callback(provider: str, request: Request):
     try:
         client = get_oauth_client(oauth, provider)
         token = await client.authorize_access_token(request)
-        provider_subject, email = extract_userinfo_identity(provider, token["userinfo"])
-        user = get_or_create_oauth_user(provider, provider_subject, email)
+        provider_subject, email, email_verified = extract_userinfo_identity(
+            provider, token["userinfo"]
+        )
+        user = get_or_create_oauth_user(
+            provider, provider_subject, email, email_verified
+        )
     except UnknownOAuthProviderError:
         raise HTTPException(status_code=404, detail="Unknown OAuth provider")
     except OAuthConfigurationError as exc:
@@ -113,10 +126,16 @@ async def oauth_callback(provider: str, request: Request):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OAuthIdentityError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except OAuthError as exc:
+        raise HTTPException(status_code=400, detail="OAuth login failed") from exc
     except KeyError as exc:
-        raise HTTPException(status_code=400, detail="OAuth provider did not return user info") from exc
+        raise HTTPException(
+            status_code=400, detail="OAuth provider did not return user info"
+        ) from exc
 
+    request.session.clear()
     request.session["user_id"] = user["id"]
+    request.session["login_nonce"] = new_session_nonce()
     return RedirectResponse(url="/", status_code=303)
 
 

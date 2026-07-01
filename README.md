@@ -49,14 +49,16 @@ Unknown users, inactive users, disabled password hashes, and invalid passwords s
 
 ## Web session configuration
 
-OAuth web sessions require `SESSION_SECRET`. Local HTTP development should also set `SESSION_COOKIE_SECURE=false`; production should leave secure cookies enabled.
+OAuth web sessions require `SESSION_SECRET` with at least 32 characters. Local HTTP development should set `SESSION_COOKIE_SECURE=false`; production must leave secure cookies enabled and set `APP_ENV=production`.
 
 OAuth login can be configured with Google and Microsoft client credentials through environment variables. `PUBLIC_BASE_URL` defaults to `http://localhost` in local Compose and is used to derive callback URLs unless provider-specific redirect URI variables are set.
 
 Required for sessions:
 
 ```
-SESSION_SECRET=<random-secret>
+APP_ENV=production
+SESSION_SECRET=<at-least-32-random-characters>
+SESSION_COOKIE_SECURE=true
 ```
 
 Optional provider configuration:

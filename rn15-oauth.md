@@ -81,7 +81,7 @@ Provider endpoints to verify during implementation:
 - OAuth library: use Authlib with HTTPX via the Starlette integration.
 - Whether first login should display the generated IMAP password immediately or defer that to a later account/setup page.
 - Whether unverified provider emails should be rejected.
-- Production cookie policy: exact `secure`, `httponly`, `samesite`, and max-age settings.
+- Production cookie policy: exact `secure`, `httponly`, `samesite`, and max-age settings. Decided: Starlette signed cookie sessions, `running_notes_session`, `SameSite=Lax`, 14-day max age, secure by default, and insecure cookies rejected when `APP_ENV=production`.
 
 ## Implementation Checklist
 
@@ -116,3 +116,4 @@ Provider endpoints to verify during implementation:
 - 2026-06-30: Added signed-cookie session helpers, current-user lookup, `/me`, and logout endpoints.
 - 2026-07-01: Switched to Authlib plus Starlette `SessionMiddleware`, removed custom session signing, and added Google/Microsoft login-start endpoints.
 - 2026-07-01: Added Google/Microsoft callback route, userinfo extraction, OAuth identity linking, first-login user creation, and session assignment.
+- 2026-07-01: Hardened auth configuration and callback behavior: minimum session secret length, secure-cookie production guard, explicit session cookie settings, session clearing on login/finalized callback, verified-email enforcement, duplicate identity race handling, and Authlib OAuth error handling.
