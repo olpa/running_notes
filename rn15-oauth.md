@@ -91,16 +91,16 @@ Provider endpoints to verify during implementation:
 - [x] Add OAuth provider configuration loading.
 - [x] Add session creation/current-user/logout helpers.
 - [x] Add OAuth login-start endpoint for Google.
-- [ ] Add OAuth callback endpoint for Google.
+- [x] Add OAuth callback endpoint for Google.
 - [x] Add OAuth login-start endpoint for Microsoft.
-- [ ] Add OAuth callback endpoint for Microsoft.
-- [ ] Add `oauth_identities` lookup/linking logic.
-- [ ] Reuse `create_user(email)` for first-login user creation.
+- [x] Add OAuth callback endpoint for Microsoft.
+- [x] Add `oauth_identities` lookup/linking logic.
+- [x] Reuse `create_user(email)` for first-login user creation.
 - [x] Add `/me`.
-- [ ] Update README with required OAuth env vars and local callback URLs.
+- [x] Update README with required OAuth env vars and local callback URLs.
 - [ ] Update `agents-project-overview.md`.
-- [ ] Run Python compile checks.
-- [ ] Run local SQLite smoke tests for identity linking and repeated login behavior.
+- [x] Run Python compile checks.
+- [x] Run local SQLite smoke tests for identity linking and repeated login behavior.
 
 ## Acceptance Checklist
 
@@ -115,3 +115,4 @@ Provider endpoints to verify during implementation:
 - 2026-06-30: Created implementation planning document.
 - 2026-06-30: Added signed-cookie session helpers, current-user lookup, `/me`, and logout endpoints.
 - 2026-07-01: Switched to Authlib plus Starlette `SessionMiddleware`, removed custom session signing, and added Google/Microsoft login-start endpoints.
+- 2026-07-01: Added Google/Microsoft callback route, userinfo extraction, OAuth identity linking, first-login user creation, and session assignment.

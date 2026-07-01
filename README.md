@@ -77,3 +77,10 @@ Login start endpoints:
 /auth/login/google
 /auth/login/microsoft
 ```
+
+Callback endpoints configured with providers:
+
+```
+/auth/callback/google
+/auth/callback/microsoft
+```

@@ -19,6 +19,28 @@ class OAuthConfigurationError(RuntimeError):
     pass
 
 
+class OAuthUserInfoError(ValueError):
+    pass
+
+
+def extract_userinfo_identity(provider: str, userinfo: dict) -> tuple[str, str]:
+    _validate_provider(provider)
+
+    provider_subject = userinfo.get("sub")
+    if not isinstance(provider_subject, str) or not provider_subject:
+        raise OAuthUserInfoError("OAuth provider did not return a subject")
+
+    email = userinfo.get("email") or userinfo.get("preferred_username")
+    if not isinstance(email, str) or not email:
+        raise OAuthUserInfoError("OAuth provider did not return an email")
+
+    email_verified = userinfo.get("email_verified")
+    if email_verified is False:
+        raise OAuthUserInfoError("OAuth provider did not verify the email")
+
+    return provider_subject, email
+
+
 def create_oauth_registry() -> OAuth:
     oauth = OAuth()
 
