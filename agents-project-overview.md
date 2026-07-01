@@ -22,7 +22,7 @@ MVP2 added a SQLite database at `/state/users.db`. The schema is initialized by 
 Important tables:
 
 - `users`: application users and their IMAP identity.
-- `oauth_identities`: future OAuth provider mappings.
+- `oauth_identities`: OAuth provider mappings for Google and Microsoft sign-in.
 
 Current `users` columns:
 
@@ -58,7 +58,9 @@ This command:
 Relevant files:
 
 - `backend/admin.py`: admin CLI entrypoint.
-- `backend/users.py`: user creation and Maildir provisioning.
+- `backend/users.py`: user creation, user serialization, and Maildir provisioning.
+- `backend/oauth.py`: Authlib provider registry, redirect URI/session config, and userinfo validation.
+- `backend/oauth_identities.py`: OAuth identity lookup/linking and first-login user creation.
 - `backend/database.py`: SQLite connection and DDL.
 - `docker-compose.yml`: volume mounts and mail UID/GID env vars.
 - `dovecot/config/10-mail.conf`: Dovecot mail location and UID/GID notes.
@@ -121,6 +123,49 @@ docker compose exec dovecot doveadm user <imap_username>
 ```
 
 Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
+
+
+## Ticket #15: OAuth Login And Web Sessions
+
+Ticket `#15` / `MVP2-005: Add OAuth Login And Web Sessions` is implemented structurally for Google and Microsoft OAuth/OIDC.
+
+Current behavior:
+
+- OAuth is implemented with Authlib and Starlette `SessionMiddleware`;
+- supported providers are `google` and `microsoft`;
+- login start endpoints are `/auth/login/google` and `/auth/login/microsoft`;
+- callback endpoints are `/auth/callback/google` and `/auth/callback/microsoft`;
+- successful callbacks link or create an application user, insert `oauth_identities`, and set `request.session["user_id"]`;
+- `/me` returns the current active user from the signed session;
+- `/auth/logout` clears the session;
+- first-login user creation reuses `create_user(email)`, so users get Maildir provisioning and generated IMAP credentials;
+- Google email must be explicitly verified; Microsoft userinfo is accepted without a Google-style `email_verified` claim because Microsoft OIDC userinfo does not consistently include one;
+- disabled users are rejected during session lookup and OAuth identity linking.
+
+Session and OAuth configuration:
+
+- `SESSION_SECRET` is required and must be at least 32 characters;
+- `SESSION_COOKIE_SECURE` defaults to secure cookies and cannot be disabled when `APP_ENV=production`;
+- the session cookie is `running_notes_session`, `SameSite=Lax`, path `/`, 14-day max age;
+- `PUBLIC_BASE_URL` is used to derive callback URLs unless provider-specific redirect URI env vars are set;
+- OAuth client IDs and secrets are loaded only from environment variables.
+
+Relevant environment variables:
+
+```text
+APP_ENV
+SESSION_SECRET
+SESSION_COOKIE_SECURE
+PUBLIC_BASE_URL
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI
+MICROSOFT_CLIENT_ID
+MICROSOFT_CLIENT_SECRET
+MICROSOFT_REDIRECT_URI
+```
+
+Verification so far has used no-network fakes for Authlib callback behavior plus SQLite smoke tests for first login, repeated login, disabled users, invalid email, and unverified email paths. Real browser OAuth testing with actual Google/Microsoft credentials and configured redirect URIs is still required before considering the provider integrations fully accepted.
 
 ## Development Notes
 
