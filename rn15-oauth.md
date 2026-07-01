@@ -85,17 +85,18 @@ Provider endpoints to verify during implementation:
 
 ## Implementation Checklist
 
-- [ ] Inspect current `oauth_identities` schema and decide whether it needs migration.
+- [x] Inspect current `oauth_identities` schema and decide whether it needs migration.
 - [ ] Add backend dependencies if needed.
-- [ ] Add configuration loading for session and OAuth environment variables.
-- [ ] Add session creation/current-user/logout helpers.
+- [x] Add session cookie configuration loading.
+- [ ] Add OAuth provider configuration loading.
+- [x] Add session creation/current-user/logout helpers.
 - [ ] Add OAuth login-start endpoint for Google.
 - [ ] Add OAuth callback endpoint for Google.
 - [ ] Add OAuth login-start endpoint for Microsoft.
 - [ ] Add OAuth callback endpoint for Microsoft.
 - [ ] Add `oauth_identities` lookup/linking logic.
 - [ ] Reuse `create_user(email)` for first-login user creation.
-- [ ] Add `/me`.
+- [x] Add `/me`.
 - [ ] Update README with required OAuth env vars and local callback URLs.
 - [ ] Update `agents-project-overview.md`.
 - [ ] Run Python compile checks.
@@ -112,3 +113,4 @@ Provider endpoints to verify during implementation:
 ## Progress Log
 
 - 2026-06-30: Created implementation planning document.
+- 2026-06-30: Added signed-cookie session helpers, current-user lookup, `/me`, and logout endpoints.

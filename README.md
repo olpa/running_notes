@@ -46,3 +46,7 @@ docker compose exec dovecot doveadm user <imap_username>
 ```
 
 Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
+
+## Web session configuration
+
+OAuth web sessions require `SESSION_SECRET`. Local HTTP development should also set `SESSION_COOKIE_SECURE=false`; production should leave secure cookies enabled.

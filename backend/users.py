@@ -36,6 +36,15 @@ class UserNotFoundError(ValueError):
     pass
 
 
+def serialize_user(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "status": row["status"],
+        "imap_username": row["imap_username"],
+    }
+
+
 def create_user(email: str) -> dict:
     normalized_email = _normalize_email(email)
     user_id = uuid.uuid4().hex
@@ -106,6 +115,22 @@ def reset_imap_password(identifier: str) -> dict:
         "imap_username": user["imap_username"],
         "imap_password": imap_password,
     }
+
+
+def get_user_by_id(user_id: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, email, status, imap_username
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+    return serialize_user(row)
 
 
 def _normalize_email(email: str) -> str:

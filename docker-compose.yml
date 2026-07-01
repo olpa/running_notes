@@ -18,6 +18,7 @@ services:
     environment:
       MAIL_UID: "5000"
       MAIL_GID: "5000"
+      SESSION_COOKIE_SECURE: "false"
     volumes:
       - ./data:/data
       - ./state:/state

@@ -8,10 +8,12 @@ from email.mime.text import MIMEText
 from email.utils import format_datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 
 from database import initialize_database
+from sessions import clear_session, get_session_user_id
+from users import get_user_by_id
 
 DATA_DIR = Path("/data")
 LMTP_HOST = "dovecot"
@@ -49,6 +51,26 @@ def deliver_via_lmtp(note_id: str, created_at: datetime, audio_bytes: bytes):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/me")
+def me(request: Request):
+    user_id = get_session_user_id(request)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = get_user_by_id(user_id)
+    if user is None or user["status"] != "active":
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    return {"user": user}
+
+
+@app.post("/auth/logout", status_code=204)
+def logout(response: Response):
+    clear_session(response)
+    response.status_code = 204
+    return response
 
 
 @app.post("/record", status_code=201)
