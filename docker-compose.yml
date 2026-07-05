@@ -2,12 +2,37 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
+      - "127.0.0.1:8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend:/usr/share/nginx/html:ro
     depends_on:
       - backend
+    networks:
+      - frontend
+    restart: unless-stopped
+
+  boringproxy-client:
+    image: debian:bookworm-slim
+    entrypoint: ["/usr/local/bin/boringproxy"]
+    command:
+      - client
+      - -server
+      - "${BORINGPROXY_SERVER:-boringp.uucode.com}"
+      - -user
+      - "${BORINGPROXY_USER:-admin}"
+      - -token
+      - "${BORINGPROXY_TOKEN:?BORINGPROXY_TOKEN is required}"
+      - -client-name
+      - "${BORINGPROXY_CLIENT_NAME:-notes-dev}"
+      - -cert-dir
+      - /var/lib/boringproxy/certs
+    volumes:
+      - /mnt/HC_Volume_103849597/home/olpa/boringproxy/boringproxy:/usr/local/bin/boringproxy:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - ./boringproxy-certs:/var/lib/boringproxy/certs
+    depends_on:
+      - nginx
     networks:
       - frontend
     restart: unless-stopped
@@ -20,7 +45,7 @@ services:
       MAIL_GID: "5000"
       APP_ENV: "${APP_ENV:-development}"
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
-      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost}"
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
@@ -40,8 +65,8 @@ services:
   dovecot:
     image: dovecot/dovecot:latest
     ports:
-      - "143:143"   # IMAP
-      - "993:993"   # IMAPS
+      - "127.0.0.1:143:143"   # IMAP
+      - "127.0.0.1:993:993"   # IMAPS
     volumes:
       - ./dovecot/config:/etc/dovecot/conf.d
       - ./maildir:/var/mail/voiceinbox
