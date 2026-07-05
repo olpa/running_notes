@@ -429,9 +429,16 @@
     }
 
     async function loadImapSettings() {
-      const data = await fetchJson("/me/imap-settings");
-      currentSettings = data.imap;
-      renderImapSettings(currentSettings);
+      try {
+        const data = await fetchJson("/me/imap-settings");
+        currentSettings = data.imap;
+        renderImapSettings(currentSettings);
+        showStatus(imapStatus, "");
+      } catch (err) {
+        if (err.message === "Not signed in") throw err;
+        imapSettings.replaceChildren();
+        showStatus(imapStatus, `IMAP settings unavailable: ${err.message}`, "error");
+      }
     }
 
     function renderImapSettings(settings) {
