@@ -1,7 +1,8 @@
 import json
 import logging
+import os
+import secrets
 import smtplib
-import uuid
 from datetime import datetime, timezone
 from email.mime.audio import MIMEAudio
 from email.mime.multipart import MIMEMultipart
@@ -33,7 +34,14 @@ from oauth import (
 from oauth_identities import OAuthIdentityError, get_or_create_oauth_user
 from users import get_user_by_id
 
-DATA_DIR = Path("/data")
+STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
+USER_STATE_DIR = STATE_DIR / "users"
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+MAX_USER_NOTE_BYTES = int(
+    os.environ.get("MAX_USER_NOTE_BYTES", str(250 * 1024 * 1024))
+)
+MAX_USER_NOTES = int(os.environ.get("MAX_USER_NOTES", "100"))
+ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
 MAIL_FROM = "voiceinbox@voiceinbox.local"
@@ -108,6 +116,69 @@ def deliver_via_lmtp(
         logger.info("LMTP delivered note %s to %s", note_id, recipient)
 
 
+def note_id_for(created_at: datetime) -> str:
+    timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
+    return f"note-{timestamp}-{secrets.token_hex(4)}"
+
+
+def user_notes_dir(user_id: str) -> Path:
+    return USER_STATE_DIR / user_id / "notes"
+
+
+def note_dir_for(user_id: str, note_id: str) -> Path:
+    return user_notes_dir(user_id) / note_id
+
+
+def validate_upload_type(file: UploadFile) -> None:
+    media_type = (file.content_type or "").split(";", 1)[0].strip().lower()
+    if media_type not in ACCEPTED_AUDIO_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported audio type")
+
+
+async def read_limited_upload(file: UploadFile) -> bytes:
+    chunks = []
+    total = 0
+
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Upload too large")
+        chunks.append(chunk)
+
+    if total == 0:
+        raise HTTPException(status_code=400, detail="Empty upload")
+
+    return b"".join(chunks)
+
+
+def user_note_usage(notes_dir: Path) -> tuple[int, int]:
+    note_count = 0
+    total_bytes = 0
+    if not notes_dir.exists():
+        return note_count, total_bytes
+
+    for note_dir in notes_dir.iterdir():
+        if not note_dir.is_dir():
+            continue
+        note_count += 1
+        audio_path = note_dir / "audio.webm"
+        if audio_path.exists():
+            total_bytes += audio_path.stat().st_size
+
+    return note_count, total_bytes
+
+
+def enforce_user_quota(user_id: str, upload_bytes: int) -> None:
+    note_count, total_bytes = user_note_usage(user_notes_dir(user_id))
+    if note_count >= MAX_USER_NOTES:
+        raise HTTPException(status_code=403, detail="Note quota exceeded")
+    if total_bytes + upload_bytes > MAX_USER_NOTE_BYTES:
+        raise HTTPException(status_code=403, detail="Storage quota exceeded")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -173,15 +244,19 @@ def logout(request: Request):
 @app.post("/record", status_code=201)
 async def record(request: Request, file: UploadFile):
     user = current_active_user(request)
-    note_id = f"note-{uuid.uuid4().hex[:12]}"
-    note_dir = DATA_DIR / note_id
-    note_dir.mkdir(parents=True, exist_ok=True)
+    validate_upload_type(file)
 
-    audio_bytes = await file.read()
+    audio_bytes = await read_limited_upload(file)
+    enforce_user_quota(user["id"], len(audio_bytes))
+
+    created_at = datetime.now(timezone.utc)
+    note_id = note_id_for(created_at)
+    note_dir = note_dir_for(user["id"], note_id)
+    note_dir.mkdir(parents=True, exist_ok=False)
+
     audio_path = note_dir / "audio.webm"
     audio_path.write_bytes(audio_bytes)
 
-    created_at = datetime.now(timezone.utc)
     created_at_str = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
     subject = f"Voice note {created_at_str}"
     metadata = {
@@ -198,16 +273,18 @@ async def record(request: Request, file: UploadFile):
 
 
 @app.get("/note/{note_id}")
-def get_note(note_id: str):
-    meta_path = DATA_DIR / note_id / "metadata.json"
+def get_note(note_id: str, request: Request):
+    user = current_active_user(request)
+    meta_path = note_dir_for(user["id"], note_id) / "metadata.json"
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail="Note not found")
     return json.loads(meta_path.read_text())
 
 
 @app.get("/note/{note_id}/audio")
-def get_audio(note_id: str):
-    audio_path = DATA_DIR / note_id / "audio.webm"
+def get_audio(note_id: str, request: Request):
+    user = current_active_user(request)
+    audio_path = note_dir_for(user["id"], note_id) / "audio.webm"
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(audio_path, media_type="audio/webm")

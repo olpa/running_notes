@@ -47,6 +47,10 @@ docker compose exec dovecot doveadm user <imap_username>
 
 Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
 
+## Recorder uploads
+
+Recording uploads require a signed web session. Audio is accepted only as WebM (`audio/webm`), capped by `MAX_UPLOAD_BYTES` which defaults to 25 MiB, and stored under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Per-user storage is limited by `MAX_USER_NOTES` and `MAX_USER_NOTE_BYTES`, defaulting to 100 notes and 250 MiB.
+
 ## Web session configuration
 
 OAuth web sessions require `SESSION_SECRET` with at least 32 characters. Local HTTP development should set `SESSION_COOKIE_SECURE=false`; production must leave secure cookies enabled and set `APP_ENV=production`.
