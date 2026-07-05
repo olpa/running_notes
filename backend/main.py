@@ -1,4 +1,5 @@
 import json
+import logging
 import smtplib
 import uuid
 from datetime import datetime, timezone
@@ -36,6 +37,8 @@ DATA_DIR = Path("/data")
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
 MAIL_FROM = "voiceinbox@voiceinbox.local"
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 app.add_middleware(
@@ -85,8 +88,24 @@ def deliver_via_lmtp(
     attachment.add_header("Content-Disposition", "attachment", filename="audio.webm")
     msg.attach(attachment)
 
-    with smtplib.LMTP(LMTP_HOST, LMTP_PORT) as lmtp:
-        lmtp.sendmail(MAIL_FROM, [recipient], msg.as_bytes())
+    try:
+        with smtplib.LMTP(LMTP_HOST, LMTP_PORT) as lmtp:
+            refused = lmtp.sendmail(MAIL_FROM, [recipient], msg.as_bytes())
+    except smtplib.SMTPException:
+        logger.exception(
+            "LMTP delivery failed for note %s to %s", note_id, recipient
+        )
+        raise
+
+    if refused:
+        logger.error(
+            "LMTP delivery refused recipients for note %s to %s: %s",
+            note_id,
+            recipient,
+            refused,
+        )
+    else:
+        logger.info("LMTP delivered note %s to %s", note_id, recipient)
 
 
 @app.get("/health")
