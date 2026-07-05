@@ -18,6 +18,16 @@ services:
     environment:
       MAIL_UID: "5000"
       MAIL_GID: "5000"
+      APP_ENV: "${APP_ENV:-development}"
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
+      SESSION_COOKIE_SECURE: "false"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-}"
+      MICROSOFT_CLIENT_ID: "${MICROSOFT_CLIENT_ID:-}"
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET:-}"
+      MICROSOFT_REDIRECT_URI: "${MICROSOFT_REDIRECT_URI:-}"
     volumes:
       - ./data:/data
       - ./state:/state

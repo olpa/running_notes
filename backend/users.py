@@ -36,8 +36,17 @@ class UserNotFoundError(ValueError):
     pass
 
 
+def serialize_user(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "status": row["status"],
+        "imap_username": row["imap_username"],
+    }
+
+
 def create_user(email: str) -> dict:
-    normalized_email = _normalize_email(email)
+    normalized_email = normalize_email(email)
     user_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     imap_username = normalized_email
@@ -108,7 +117,23 @@ def reset_imap_password(identifier: str) -> dict:
     }
 
 
-def _normalize_email(email: str) -> str:
+def get_user_by_id(user_id: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, email, status, imap_username
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+    return serialize_user(row)
+
+
+def normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if not EMAIL_RE.match(normalized):
         raise InvalidEmailError(email)

@@ -46,3 +46,43 @@ docker compose exec dovecot doveadm user <imap_username>
 ```
 
 Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
+
+## Web session configuration
+
+OAuth web sessions require `SESSION_SECRET` with at least 32 characters. Local HTTP development should set `SESSION_COOKIE_SECURE=false`; production must leave secure cookies enabled and set `APP_ENV=production`.
+
+OAuth login can be configured with Google and Microsoft client credentials through environment variables. `PUBLIC_BASE_URL` defaults to `http://localhost` in local Compose and is used to derive callback URLs unless provider-specific redirect URI variables are set.
+
+Required for sessions:
+
+```
+APP_ENV=production
+SESSION_SECRET=<at-least-32-random-characters>
+SESSION_COOKIE_SECURE=true
+```
+
+Optional provider configuration:
+
+```
+PUBLIC_BASE_URL=http://localhost
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost/auth/callback/google
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+MICROSOFT_REDIRECT_URI=http://localhost/auth/callback/microsoft
+```
+
+Login start endpoints:
+
+```
+/auth/login/google
+/auth/login/microsoft
+```
+
+Callback endpoints configured with providers:
+
+```
+/auth/callback/google
+/auth/callback/microsoft
+```

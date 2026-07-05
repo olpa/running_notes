@@ -1,5 +1,6 @@
 *.swp
 *~
+.env
 # Maildir message files - local data only
 maildir/*
 !maildir/.gitkeep
