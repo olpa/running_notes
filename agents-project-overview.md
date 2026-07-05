@@ -11,7 +11,7 @@ The app is a small Docker Compose stack:
 - `dovecot` provides IMAP/LMTP using config from `dovecot/config/`.
 - `state/` is the persistent SQLite state directory at runtime.
 - `maildir/` is the persistent mailbox directory shared by backend and Dovecot.
-- `data/` stores uploaded note/audio data.
+- `state/users/<user-id>/notes/` stores authenticated note/audio uploads.
 
 Dovecot authentication is configured to use SQLite users. The old `voiceinbox/voiceinbox` demo credentials should be treated as removed legacy MVP1 behavior.
 
@@ -124,6 +124,21 @@ docker compose exec dovecot doveadm user <imap_username>
 
 Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
 
+
+## Ticket #16: Protected Recorder Uploads
+
+Ticket `#16` / `MVP2-006: Protect Recorder Uploads With Authentication` is implemented structurally.
+
+Current behavior:
+
+- `POST /record` requires the signed web session and rejects anonymous uploads;
+- uploads accept `audio/webm` only, including browser content types with parameters such as `audio/webm;codecs=opus`;
+- each upload is read with a hard size cap, `MAX_UPLOAD_BYTES`, defaulting to 25 MiB;
+- per-user quota is enforced with `MAX_USER_NOTES` and `MAX_USER_NOTE_BYTES`, defaulting to 100 notes and 250 MiB;
+- note IDs use UTC timestamp plus random suffix, for example `note-20260705T083354Z-a1b2c3d4`;
+- note files are stored under `state/users/<user-id>/notes/<note-id>/`;
+- note metadata includes the owning `user_id`;
+- `/note/<note-id>` and `/note/<note-id>/audio` are session-scoped to the current user.
 
 ## Ticket #15: OAuth Login And Web Sessions
 
