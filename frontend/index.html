@@ -153,6 +153,12 @@
       color: var(--text);
     }
 
+    .secondary.copied {
+      background: #e8f7ef;
+      border-color: #7cc99d;
+      color: var(--success);
+    }
+
     .danger {
       background: #fff7f7;
       border-color: #efb3b3;
@@ -368,7 +374,9 @@
     document.getElementById("topLogout").addEventListener("click", logout);
     document.getElementById("accountLogout").addEventListener("click", logout);
     document.getElementById("regeneratePassword").addEventListener("click", regeneratePassword);
-    document.getElementById("copyPassword").addEventListener("click", () => copyText(newPassword.textContent, accountStatus));
+    document.getElementById("copyPassword").addEventListener("click", (event) => {
+      copyText(newPassword.textContent, accountStatus, event.currentTarget);
+    });
 
     function selectTab(name) {
       document.querySelectorAll(".tab").forEach((tab) => {
@@ -464,20 +472,36 @@
         copy.className = "secondary";
         copy.type = "button";
         copy.textContent = "Copy";
-        copy.addEventListener("click", () => copyText(value, imapStatus));
+        copy.addEventListener("click", () => copyText(value, imapStatus, copy));
 
         row.append(labelEl, valueEl, copy);
         return row;
       }));
     }
 
-    async function copyText(value, statusEl) {
+    async function copyText(value, statusEl, button) {
       try {
         await navigator.clipboard.writeText(value);
+        showCopied(button);
         showStatus(statusEl, "Copied", "success");
       } catch (err) {
         showStatus(statusEl, `Copy failed: ${err.message}`, "error");
       }
+    }
+
+    function showCopied(button) {
+      if (!button) return;
+      const originalText = button.dataset.originalText || button.textContent;
+      button.dataset.originalText = originalText;
+      window.clearTimeout(Number(button.dataset.resetTimer || 0));
+      button.textContent = "Copied";
+      button.classList.add("copied");
+      button.disabled = true;
+      button.dataset.resetTimer = String(window.setTimeout(() => {
+        button.textContent = originalText;
+        button.classList.remove("copied");
+        button.disabled = false;
+      }, 1200));
     }
 
     async function logout() {
