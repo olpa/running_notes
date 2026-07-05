@@ -51,7 +51,7 @@ This command:
 - creates a row in `users`;
 - assigns `imap_username` to the normalized user email;
 - creates a Maildir under `maildir/users/<user-id>`;
-- sets Maildir ownership using `MAIL_UID` and `MAIL_GID`, currently `5000:5000`;
+- sets Maildir ownership using `MAIL_UID` and `MAIL_GID`, currently `1000:1000`;
 - generates a one-time pronounceable IMAP password and prints it in the JSON output;
 - stores only the `{SHA512-CRYPT}` hash in `imap_password_hash`.
 
@@ -79,7 +79,7 @@ The host-visible path is:
 maildir/users/<user-id>
 ```
 
-Dovecot is configured to use numeric `mail_uid = 5000` and `mail_gid = 5000`. The backend uses the same numeric values when creating Maildirs. SQL userdb returns each user home and `mail_path` as `/var/mail/voiceinbox/users/<user-id>` so users do not share one mailbox.
+Dovecot is configured to use numeric `mail_uid = 1000` and `mail_gid = 1000`. The backend uses the same numeric values when creating Maildirs. SQL userdb returns each user home and `mail_path` as `/var/mail/voiceinbox/users/<user-id>` so users do not share one mailbox.
 
 ## Ticket #14: IMAP Credentials
 
@@ -111,7 +111,7 @@ Current behavior:
 
 - `dovecot/config/10-auth.conf` uses SQLite SQL auth against `/state/users.db`;
 - SQL passdb selects only active users with non-disabled password hashes;
-- SQL userdb selects only active users with non-disabled password hashes and returns numeric UID/GID `5000:5000`;
+- SQL userdb selects only active users with non-disabled password hashes and returns numeric UID/GID `1000:1000`;
 - SQL userdb derives `home` and `mail_path` as `/var/mail/voiceinbox/users/<user-id>`;
 - static `voiceinbox/voiceinbox` authentication has been removed.
 

@@ -41,8 +41,8 @@ services:
     build: ./backend
     image: running-notes-be
     environment:
-      MAIL_UID: "5000"
-      MAIL_GID: "5000"
+      MAIL_UID: "1000"
+      MAIL_GID: "1000"
       APP_ENV: "${APP_ENV:-development}"
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"

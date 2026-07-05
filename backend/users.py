@@ -11,8 +11,8 @@ from pathlib import Path
 from database import connect
 
 MAIL_ROOT = Path(os.environ.get("MAIL_ROOT", "/var/mail/voiceinbox/users"))
-MAIL_UID = int(os.environ.get("MAIL_UID", "5000"))
-MAIL_GID = int(os.environ.get("MAIL_GID", "5000"))
+MAIL_UID = int(os.environ.get("MAIL_UID", "1000"))
+MAIL_GID = int(os.environ.get("MAIL_GID", "1000"))
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 IMAP_PASSWORD_DIGITS = 4
 IMAP_PASSWORD_CHUNKS = 3
