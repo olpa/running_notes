@@ -36,7 +36,6 @@ DATA_DIR = Path("/data")
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
 MAIL_FROM = "voiceinbox@voiceinbox.local"
-MAIL_TO = "voiceinbox"
 
 app = FastAPI()
 app.add_middleware(
@@ -56,10 +55,25 @@ def startup():
     initialize_database()
 
 
-def deliver_via_lmtp(note_id: str, created_at: datetime, audio_bytes: bytes):
+def current_active_user(request: Request) -> dict:
+    user_id = request.session.get("user_id")
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = get_user_by_id(user_id)
+    if user is None or user["status"] != "active":
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    return user
+
+
+def deliver_via_lmtp(
+    recipient: str, note_id: str, created_at: datetime, audio_bytes: bytes
+):
     msg = MIMEMultipart()
     msg["From"] = MAIL_FROM
-    msg["To"] = MAIL_TO
+    msg["To"] = recipient
     msg["Subject"] = f"Voice note {created_at.strftime('%Y-%m-%dT%H:%M:%SZ')}"
     msg["Message-ID"] = f"<note-{note_id}-audio@voiceinbox.local>"
     msg["Date"] = format_datetime(created_at)
@@ -72,7 +86,7 @@ def deliver_via_lmtp(note_id: str, created_at: datetime, audio_bytes: bytes):
     msg.attach(attachment)
 
     with smtplib.LMTP(LMTP_HOST, LMTP_PORT) as lmtp:
-        lmtp.sendmail(MAIL_FROM, [MAIL_TO], msg.as_bytes())
+        lmtp.sendmail(MAIL_FROM, [recipient], msg.as_bytes())
 
 
 @app.get("/health")
@@ -82,15 +96,7 @@ def health():
 
 @app.get("/me")
 def me(request: Request):
-    user_id = request.session.get("user_id")
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    user = get_user_by_id(user_id)
-    if user is None or user["status"] != "active":
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    return {"user": user}
+    return {"user": current_active_user(request)}
 
 
 @app.get("/auth/login/{provider}")
@@ -146,7 +152,8 @@ def logout(request: Request):
 
 
 @app.post("/record", status_code=201)
-async def record(file: UploadFile):
+async def record(request: Request, file: UploadFile):
+    user = current_active_user(request)
     note_id = f"note-{uuid.uuid4().hex[:12]}"
     note_dir = DATA_DIR / note_id
     note_dir.mkdir(parents=True, exist_ok=True)
@@ -158,10 +165,15 @@ async def record(file: UploadFile):
     created_at = datetime.now(timezone.utc)
     created_at_str = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
     subject = f"Voice note {created_at_str}"
-    metadata = {"id": note_id, "created_at": created_at_str, "subject": subject}
+    metadata = {
+        "id": note_id,
+        "created_at": created_at_str,
+        "subject": subject,
+        "user_id": user["id"],
+    }
     (note_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
 
-    deliver_via_lmtp(note_id, created_at, audio_bytes)
+    deliver_via_lmtp(user["imap_username"], note_id, created_at, audio_bytes)
 
     return metadata
 

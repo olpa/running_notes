@@ -10,3 +10,9 @@ data/*
 # Python generated files
 __pycache__/
 *.py[cod]
+# boringproxy client certificate cache
+boringproxy-certs/*
+!boringproxy-certs/.gitkeep
+# Runtime state
+state/*
+!state/.gitkeep
