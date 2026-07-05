@@ -27,9 +27,23 @@
     button.recording {
       background: #dc2626;
     }
+    button.secondary {
+      background: #111827;
+      font-size: 1rem;
+      padding: 0.75rem 1.2rem;
+    }
     button:disabled {
       background: #9ca3af;
       cursor: default;
+    }
+    #auth {
+      display: none;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    #user {
+      margin-bottom: 1rem;
+      color: #374151;
     }
     #status {
       margin-top: 1.2rem;
@@ -40,17 +54,61 @@
   </style>
 </head>
 <body>
-  <button id="btn">[ Record ]</button>
+  <div id="auth">
+    <button class="secondary" id="google">Google</button>
+    <button class="secondary" id="microsoft">Microsoft</button>
+  </div>
+  <div id="user"></div>
+  <button id="btn" disabled>[ Record ]</button>
   <div id="status"></div>
 
   <script>
+    const auth = document.getElementById('auth');
+    const user = document.getElementById('user');
     const btn = document.getElementById('btn');
     const status = document.getElementById('status');
 
     let mediaRecorder = null;
     let chunks = [];
+    let signedIn = false;
+
+    document.getElementById('google').addEventListener('click', () => {
+      window.location.href = '/auth/login/google';
+    });
+    document.getElementById('microsoft').addEventListener('click', () => {
+      window.location.href = '/auth/login/microsoft';
+    });
+
+    async function loadSession() {
+      try {
+        const res = await fetch('/me');
+        if (res.status === 401) {
+          signedIn = false;
+          auth.style.display = 'flex';
+          user.textContent = '';
+          btn.disabled = true;
+          status.textContent = 'Sign in to record';
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        signedIn = true;
+        auth.style.display = 'none';
+        user.textContent = data.user.email;
+        btn.disabled = false;
+        status.textContent = '';
+      } catch (err) {
+        signedIn = false;
+        auth.style.display = 'flex';
+        btn.disabled = true;
+        status.textContent = `Session check failed: ${err.message}`;
+      }
+    }
 
     btn.addEventListener('click', async () => {
+      if (!signedIn) return;
+
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
         return;
@@ -76,7 +134,7 @@
           btn.textContent = '[ Record ]';
           btn.classList.remove('recording');
           btn.disabled = true;
-          status.textContent = 'Uploading…';
+          status.textContent = 'Uploading...';
 
           const blob = new Blob(chunks, { type: mimeType });
           const form = new FormData();
@@ -84,12 +142,16 @@
 
           try {
             const res = await fetch('/record', { method: 'POST', body: form });
+            if (res.status === 401) {
+              await loadSession();
+              throw new Error('Not signed in');
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            status.textContent = '✓ Uploaded';
+            status.textContent = 'Uploaded';
           } catch (err) {
             status.textContent = `Upload failed: ${err.message}`;
           } finally {
-            btn.disabled = false;
+            btn.disabled = !signedIn;
           }
         };
 
@@ -100,6 +162,8 @@
         status.textContent = `Mic error: ${err.message}`;
       }
     });
+
+    loadSession();
   </script>
 </body>
 </html>
