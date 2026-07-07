@@ -182,6 +182,23 @@ MICROSOFT_REDIRECT_URI
 
 Verification so far has used no-network fakes for Authlib callback behavior plus SQLite smoke tests for first login, repeated login, disabled users, invalid email, and unverified email paths. Real browser OAuth testing with actual Google/Microsoft credentials and configured redirect URIs is still required before considering the provider integrations fully accepted.
 
+
+## Ticket #18: User Portal Pages
+
+Ticket `#18` / `MVP2-008: Build User Portal Pages` is in progress on the current branch.
+
+Implemented shape:
+
+- the static frontend is a small authenticated portal with Record, IMAP, and Account pages;
+- anonymous users see Google and Microsoft login actions;
+- signed-in users see their email, upload status states, IMAP setup values, and logout actions;
+- `GET /me/imap-settings` returns public IMAP host, port, security mode, and the current user IMAP username;
+- `POST /me/imap-password` regenerates the signed-in user IMAP app password, stores only the new hash, and returns plaintext only in that response;
+- portal IMAP values are configured through `PUBLIC_IMAP_HOST`, `PUBLIC_IMAP_PORT`, and `PUBLIC_IMAP_SECURITY`, with host fallback derived from `PUBLIC_BASE_URL`;
+- the portal exposes no server filesystem paths.
+
+Manual verification should include login, recording upload, copying IMAP settings, regenerating an IMAP password, and confirming the old IMAP password no longer authenticates.
+
 ## Development Notes
 
 There is no committed test suite yet. Existing verification has been done with Python compile checks and temporary SQLite/Maildir smoke tests. Keep new changes small and easy to verify from the command line.

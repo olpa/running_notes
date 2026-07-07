@@ -51,6 +51,23 @@ Unknown users, inactive users, disabled password hashes, and invalid passwords s
 
 Recording uploads require a signed web session. Audio is accepted only as WebM (`audio/webm`), capped by `MAX_UPLOAD_BYTES` which defaults to 25 MiB, and stored under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Per-user storage is limited by `MAX_USER_NOTES` and `MAX_USER_NOTE_BYTES`, defaulting to 100 notes and 250 MiB.
 
+
+## User portal
+
+After OAuth login, the web portal provides recorder, IMAP setup, and account pages. The IMAP setup page shows only client connection settings: host, port, security mode, and the IMAP username. It never exposes server filesystem paths.
+
+Portal IMAP settings are returned by `GET /me/imap-settings` and are controlled with these environment variables:
+
+```
+PUBLIC_IMAP_HOST=notes-dev.handsfree.vc
+PUBLIC_IMAP_PORT=993
+PUBLIC_IMAP_SECURITY=TLS
+```
+
+If `PUBLIC_IMAP_HOST` is unset, the backend derives the host from `PUBLIC_BASE_URL`.
+
+Signed-in users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response.
+
 ## Web session configuration
 
 OAuth web sessions require `SESSION_SECRET` with at least 32 characters. Local HTTP development should set `SESSION_COOKIE_SECURE=false`; production must leave secure cookies enabled and set `APP_ENV=production`.

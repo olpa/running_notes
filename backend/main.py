@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import format_datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from authlib.integrations.base_client.errors import OAuthError
@@ -32,7 +33,7 @@ from oauth import (
     session_secret,
 )
 from oauth_identities import OAuthIdentityError, get_or_create_oauth_user
-from users import get_user_by_id
+from users import get_user_by_id, reset_imap_password
 
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
 USER_STATE_DIR = STATE_DIR / "users"
@@ -45,6 +46,10 @@ ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
 MAIL_FROM = "voiceinbox@voiceinbox.local"
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
+PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
+PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
+PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +184,14 @@ def enforce_user_quota(user_id: str, upload_bytes: int) -> None:
         raise HTTPException(status_code=403, detail="Storage quota exceeded")
 
 
+def public_imap_host() -> str:
+    if PUBLIC_IMAP_HOST:
+        return PUBLIC_IMAP_HOST
+
+    parsed = urlparse(PUBLIC_BASE_URL)
+    return parsed.hostname or "localhost"
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -187,6 +200,31 @@ def health():
 @app.get("/me")
 def me(request: Request):
     return {"user": current_active_user(request)}
+
+
+@app.get("/me/imap-settings")
+def imap_settings(request: Request):
+    user = current_active_user(request)
+    return {
+        "imap": {
+            "host": public_imap_host(),
+            "port": PUBLIC_IMAP_PORT,
+            "security": PUBLIC_IMAP_SECURITY,
+            "username": user["imap_username"],
+        }
+    }
+
+
+@app.post("/me/imap-password")
+def regenerate_imap_password(request: Request):
+    user = current_active_user(request)
+    reset = reset_imap_password(user["email"])
+    return {
+        "imap": {
+            "username": reset["imap_username"],
+            "password": reset["imap_password"],
+        }
+    }
 
 
 @app.get("/auth/login/{provider}")
