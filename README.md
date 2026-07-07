@@ -8,13 +8,21 @@ Early experiments towards a MVP
 
 ## Local setup
 
+The default Compose stack includes nginx, backend, Dovecot, and the boringproxy client. Because boringproxy is intentionally part of the running development stack, `BORINGPROXY_TOKEN` must be set before starting Compose. OAuth sessions also require `SESSION_SECRET`.
+
 ```
+export SESSION_SECRET=<at-least-32-random-characters>
+export BORINGPROXY_TOKEN=<boringproxy-token>
 docker compose up
-...
-./scripts/create_sample_message.sh 
 ```
 
 Afterwards, create a user and point the IMAP client to `localhost`. Use the user email as the IMAP username and the one-time password printed by the admin command.
+
+## Container configuration
+
+Compose persists shared application state in `./state`, mounted as `/state` in the backend and read-only in Dovecot. SQLite user and OAuth identity rows live in `/state/users.db`. Backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`; backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`, and Dovecot SQL userdb derives each user mailbox path from the same stable user id.
+
+Backend and Dovecot both use numeric mail ownership `1000:1000` through `MAIL_UID`, `MAIL_GID`, and Dovecot `mail_uid`/`mail_gid`, so backend-created Maildirs are writable by Dovecot. The old single shared mailbox model is not used.
 
 ## Create a user
 
