@@ -185,7 +185,7 @@ Verification so far has used no-network fakes for Authlib callback behavior plus
 
 ## Ticket #18: User Portal Pages
 
-Ticket `#18` / `MVP2-008: Build User Portal Pages` is in progress on the current branch.
+Ticket `#18` / `MVP2-008: Build User Portal Pages` is implemented.
 
 Implemented shape:
 
@@ -198,6 +198,26 @@ Implemented shape:
 - the portal exposes no server filesystem paths.
 
 Manual verification should include login, recording upload, copying IMAP settings, regenerating an IMAP password, and confirming the old IMAP password no longer authenticates.
+
+
+## Ticket #19: Compose And Container Configuration
+
+Ticket `#19` / `MVP2-009: Update Docker Compose And Container Configuration` is implemented by the current Compose and Dovecot configuration.
+
+Current behavior:
+
+- `docker-compose.yml` mounts `./state` as `/state` in the backend and as read-only `/state` in Dovecot;
+- backend SQLite state lives at `/state/users.db`;
+- backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`;
+- backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`;
+- Dovecot SQL auth reads users from `/state/users.db`;
+- Dovecot SQL userdb derives per-user `home` and `mail_path` from the stable user id;
+- backend `MAIL_UID`/`MAIL_GID` and Dovecot `mail_uid`/`mail_gid` are aligned to `1000:1000`;
+- OAuth and session environment variables are declared in Compose;
+- nginx, backend, Dovecot, and `boringproxy-client` are part of the default Compose stack, so `SESSION_SECRET` and `BORINGPROXY_TOKEN` are required for `docker compose up`;
+- the old single shared Maildir/auth model is not used.
+
+Runtime acceptance still depends on the operator providing valid local `.env` values. The expected manual check is: start Compose, create or log in as a user, verify Dovecot auth against SQLite, record a note, and confirm Dovecot writes it to that user-specific Maildir.
 
 ## Development Notes
 
