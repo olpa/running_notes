@@ -13,8 +13,11 @@ services:
     restart: unless-stopped
 
   boringproxy-client:
-    image: debian:bookworm-slim
-    entrypoint: ["/usr/local/bin/boringproxy"]
+    build:
+      context: ./boringproxy
+      args:
+        BORINGPROXY_VERSION: "v0.10.0"
+    image: running-notes-boringproxy:v0.10.0
     command:
       - client
       - -server
@@ -28,8 +31,6 @@ services:
       - -cert-dir
       - /var/lib/boringproxy/certs
     volumes:
-      - /mnt/HC_Volume_103849597/home/olpa/boringproxy/boringproxy:/usr/local/bin/boringproxy:ro
-      - /etc/ssl/certs:/etc/ssl/certs:ro
       - ./boringproxy-certs:/var/lib/boringproxy/certs
     depends_on:
       - nginx

@@ -10,6 +10,8 @@ Early experiments towards a MVP
 
 The default Compose stack includes nginx, backend, Dovecot, and the boringproxy client. Because boringproxy is intentionally part of the running development stack, `BORINGPROXY_TOKEN` must be set before starting Compose. OAuth sessions also require `SESSION_SECRET`.
 
+The boringproxy client image is built locally from `boringproxy/Dockerfile`, using the pinned upstream `v0.10.0` release. No boringproxy binary needs to be installed or mounted from the host.
+
 ```
 export SESSION_SECRET=<at-least-32-random-characters>
 export BORINGPROXY_TOKEN=<boringproxy-token>
