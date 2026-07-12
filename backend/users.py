@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import shutil
@@ -9,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from database import connect
+
+logger = logging.getLogger(__name__)
 
 MAIL_ROOT = Path(os.environ.get("MAIL_ROOT", "/var/mail/voiceinbox/users"))
 MAIL_UID = int(os.environ.get("MAIL_UID", "1000"))
@@ -51,6 +54,12 @@ def create_user(email: str) -> dict:
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     imap_username = normalized_email
     imap_password = _generate_imap_password()
+    logger.info(
+        "IMAP password generated for new user_id=%s email=%s imap_username=%s",
+        user_id,
+        normalized_email,
+        imap_username,
+    )
     imap_password_hash = _hash_imap_password(imap_password)
 
     try:
@@ -81,8 +90,20 @@ def create_user(email: str) -> dict:
     try:
         _provision_maildir(user_id)
     except OSError:
+        logger.exception(
+            "Maildir provisioning failed for user_id=%s email=%s",
+            user_id,
+            normalized_email,
+        )
         _delete_user(user_id)
         raise
+
+    logger.info(
+        "User created user_id=%s email=%s imap_username=%s",
+        user_id,
+        normalized_email,
+        imap_username,
+    )
 
     return {
         "id": user_id,
@@ -100,6 +121,12 @@ def reset_imap_password(identifier: str) -> dict:
         raise UserNotFoundError(identifier)
 
     imap_password = _generate_imap_password()
+    logger.info(
+        "IMAP password generated for existing user_id=%s email=%s imap_username=%s",
+        user["id"],
+        user["email"],
+        user["imap_username"],
+    )
     imap_password_hash = _hash_imap_password(imap_password)
 
     with connect() as conn:
@@ -107,6 +134,13 @@ def reset_imap_password(identifier: str) -> dict:
             "UPDATE users SET imap_password_hash = ? WHERE id = ?",
             (imap_password_hash, user["id"]),
         )
+
+    logger.info(
+        "IMAP password hash replaced for user_id=%s email=%s imap_username=%s",
+        user["id"],
+        user["email"],
+        user["imap_username"],
+    )
 
     return {
         "id": user["id"],
