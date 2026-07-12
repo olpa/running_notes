@@ -91,6 +91,8 @@ Expected backend log events include:
 
 Dovecot auth logs are available in the Dovecot container logs. Failed auth attempts are made verbose with `auth_verbose = yes`; successful IMAP logins should appear as standard `imap-login Login` lines. Logs must not include OAuth tokens, OAuth authorization codes, session secrets, session cookies, plaintext IMAP passwords, or password hashes.
 
+See `OBSERVABILITY.md` for report-writing guidance and rules for adding new observability points.
+
 ## Web session configuration
 
 OAuth web sessions require `SESSION_SECRET` with at least 32 characters. Local HTTP development should set `SESSION_COOKIE_SECURE=false`; production must leave secure cookies enabled and set `APP_ENV=production`.
