@@ -76,6 +76,50 @@ PUBLIC_IMAP_SECURITY=TLS
 
 If `PUBLIC_IMAP_HOST` is unset, the backend derives the host from `PUBLIC_BASE_URL`.
 
+## TLS certificates
+
+boringproxy forwards HTTPS and IMAPS as raw TCP. TLS terminates inside this stack: nginx serves HTTPS on port 443 and Dovecot serves IMAPS on port 993.
+
+By default, both services use the existing Let's Encrypt certificate at these ignored local paths:
+
+```
+certs/letsencrypt/live/notes.handsfree.vc/fullchain.pem
+certs/letsencrypt/live/notes.handsfree.vc/privkey.pem
+```
+
+Override either path in `.env` when using a different certificate:
+
+```
+TLS_CERTIFICATE_PATH=/path/to/fullchain.pem
+TLS_PRIVATE_KEY_PATH=/path/to/privkey.pem
+```
+
+The files must exist before starting the stack. After replacing or renewing them, recreate nginx and Dovecot so they load the new certificate:
+
+```
+docker compose up -d --force-recreate nginx dovecot
+```
+
+Configure boringproxy with TCP-level tunnels targeting nginx port 443 and Dovecot port 993. Do not enable TLS termination in boringproxy. Verify both local listeners before configuring the public tunnels:
+
+```
+openssl s_client \
+  -connect 127.0.0.1:443 \
+  -servername notes-dev.handsfree.vc \
+  -verify_hostname notes-dev.handsfree.vc \
+  -verify_return_error </dev/null
+```
+
+```
+openssl s_client \
+  -connect 127.0.0.1:993 \
+  -servername notes-dev.handsfree.vc \
+  -verify_hostname notes-dev.handsfree.vc \
+  -verify_return_error </dev/null
+```
+
+Once boringproxy forwards public ports 443 and 993, run the checks against the public hostname.
+
 Signed-in users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response.
 
 ## Web session configuration
