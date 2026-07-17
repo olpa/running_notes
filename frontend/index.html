@@ -301,7 +301,7 @@
 
       <aside id="guestPrivacyWarning" class="privacy-warning hidden" role="alert">
         <strong>Guest recordings are public</strong>
-        Anyone on the internet can use the shared guest mailbox credentials to access recordings made here. Do not record private, personal, or sensitive information. Sign in with your own account for a private mailbox.
+        Anyone on the internet can use the shared guest mailbox credentials to access recordings made here. Guest recordings are automatically deleted after <span id="guestRetentionHours">24</span> hours. Do not record private, personal, or sensitive information. Sign in with your own account for a private mailbox.
       </aside>
 
       <div class="layout">
@@ -379,6 +379,7 @@
     const imapPasswordControls = document.getElementById("imapPasswordControls");
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
     const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
+    const guestRetentionHours = document.getElementById("guestRetentionHours");
 
     let mediaRecorder = null;
     let chunks = [];
@@ -434,6 +435,7 @@
       signedInEmail.textContent = user.email;
       accountEmail.textContent = user.email;
       guestPrivacyWarning.classList.toggle("hidden", !user.is_guest);
+      if (user.is_guest) guestRetentionHours.textContent = String(user.guest_retention_hours);
       imapPasswordControls.classList.toggle("hidden", !user.can_change_imap_password);
       imapPasswordInstruction.textContent = user.can_change_imap_password
         ? "Generate a new app password on the Account page if you do not have one."

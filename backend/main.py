@@ -1,9 +1,11 @@
+import asyncio
 import json
 import logging
 import os
 import secrets
+import shutil
 import smtplib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.mime.audio import MIMEAudio
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -34,6 +36,7 @@ from oauth import (
 )
 from oauth_identities import OAuthIdentityError, get_or_create_oauth_user
 from users import (
+    MAIL_ROOT,
     UserAlreadyExistsError,
     create_user,
     get_user_by_email,
@@ -49,6 +52,9 @@ MAX_USER_NOTE_BYTES = int(
     os.environ.get("MAX_USER_NOTE_BYTES", str(250 * 1024 * 1024))
 )
 MAX_USER_NOTES_PER_DAY = int(os.environ.get("MAX_USER_NOTES_PER_DAY", "100"))
+GUEST_QUOTA_FACTOR = int(os.environ.get("GUEST_QUOTA_FACTOR", "10"))
+GUEST_RETENTION_HOURS = int(os.environ.get("GUEST_RETENTION_HOURS", "24"))
+GUEST_RETENTION_CHECK_SECONDS = 60 * 60
 ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
@@ -61,6 +67,11 @@ GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "public@handsfree.vc")
 )
 GUEST_USER_PASSWORD = os.environ.get("GUEST_USER_PASSWORD", "")
+
+if GUEST_QUOTA_FACTOR < 1:
+    raise ValueError("GUEST_QUOTA_FACTOR must be at least 1")
+if GUEST_RETENTION_HOURS < 1:
+    raise ValueError("GUEST_RETENTION_HOURS must be at least 1")
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
 logging.basicConfig(
@@ -84,9 +95,23 @@ oauth = create_oauth_registry()
 
 
 @app.on_event("startup")
-def startup():
+async def startup():
     initialize_database()
     ensure_guest_user()
+    await asyncio.to_thread(cleanup_expired_guest_recordings)
+    app.state.guest_retention_task = asyncio.create_task(guest_retention_loop())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    task = getattr(app.state, "guest_retention_task", None)
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 def ensure_guest_user() -> None:
@@ -241,14 +266,84 @@ def user_note_usage(notes_dir: Path, day: datetime) -> tuple[int, int]:
     return daily_note_count, total_bytes
 
 
-def enforce_user_quota(user_id: str, upload_bytes: int, created_at: datetime) -> None:
+def enforce_user_quota(user: dict, upload_bytes: int, created_at: datetime) -> None:
     daily_note_count, total_bytes = user_note_usage(
-        user_notes_dir(user_id), created_at
+        user_notes_dir(user["id"]), created_at
     )
-    if daily_note_count >= MAX_USER_NOTES_PER_DAY:
+    quota_factor = GUEST_QUOTA_FACTOR if is_guest_user(user) else 1
+    if daily_note_count >= MAX_USER_NOTES_PER_DAY * quota_factor:
         raise HTTPException(status_code=429, detail="Daily note quota exceeded")
-    if total_bytes + upload_bytes > MAX_USER_NOTE_BYTES:
+    if total_bytes + upload_bytes > MAX_USER_NOTE_BYTES * quota_factor:
         raise HTTPException(status_code=403, detail="Storage quota exceeded")
+
+
+def cleanup_expired_guest_recordings(now: datetime | None = None) -> None:
+    guest = get_user_by_email(GUEST_USER_EMAIL)
+    if guest is None:
+        return
+
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(
+        hours=GUEST_RETENTION_HOURS
+    )
+    expired_notes = {}
+    notes_dir = user_notes_dir(guest["id"])
+    if notes_dir.exists():
+        for note_dir in notes_dir.iterdir():
+            if not note_dir.is_dir():
+                continue
+            try:
+                metadata = json.loads((note_dir / "metadata.json").read_text())
+                created_at = datetime.fromisoformat(
+                    metadata["created_at"].replace("Z", "+00:00")
+                )
+                note_id = metadata["id"]
+            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+                logger.warning("Ignoring invalid guest note during retention: %s", note_dir)
+                continue
+            if created_at <= cutoff:
+                expired_notes[note_id] = note_dir
+
+    if expired_notes:
+        remove_guest_maildir_messages(guest["id"], set(expired_notes))
+        for note_dir in expired_notes.values():
+            shutil.rmtree(note_dir)
+        logger.info(
+            "Guest retention removed recordings user_id=%s count=%d cutoff=%s",
+            guest["id"],
+            len(expired_notes),
+            cutoff.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        )
+
+
+def remove_guest_maildir_messages(user_id: str, note_ids: set[str]) -> None:
+    message_ids = {
+        f"<note-{note_id}-audio@voiceinbox.local>".encode() for note_id in note_ids
+    }
+    maildir = MAIL_ROOT / user_id
+    if not maildir.exists():
+        return
+    for mailbox_dir in maildir.rglob("*"):
+        if not mailbox_dir.is_dir() or mailbox_dir.name not in {"cur", "new"}:
+            continue
+        for message_path in mailbox_dir.iterdir():
+            if not message_path.is_file():
+                continue
+            try:
+                with message_path.open("rb") as message:
+                    headers = message.read(64 * 1024).split(b"\r\n\r\n", 1)[0]
+                if any(message_id in headers for message_id in message_ids):
+                    message_path.unlink()
+            except OSError:
+                logger.exception("Failed to inspect guest Maildir message: %s", message_path)
+
+
+async def guest_retention_loop() -> None:
+    while True:
+        await asyncio.sleep(GUEST_RETENTION_CHECK_SECONDS)
+        try:
+            await asyncio.to_thread(cleanup_expired_guest_recordings)
+        except Exception:
+            logger.exception("Guest retention cleanup failed")
 
 
 def public_imap_host() -> str:
@@ -271,6 +366,9 @@ def me(request: Request):
         "user": {
             **user,
             "is_guest": is_guest_user(user),
+            "guest_retention_hours": (
+                GUEST_RETENTION_HOURS if is_guest_user(user) else None
+            ),
             "can_change_imap_password": can_change_imap_password(user),
         }
     }
@@ -418,7 +516,7 @@ async def record(request: Request, file: UploadFile):
 
     audio_bytes = await read_limited_upload(file)
     created_at = datetime.now(timezone.utc)
-    enforce_user_quota(user["id"], len(audio_bytes), created_at)
+    enforce_user_quota(user, len(audio_bytes), created_at)
     note_id = note_id_for(created_at)
     note_dir = note_dir_for(user["id"], note_id)
     note_dir.mkdir(parents=True, exist_ok=False)

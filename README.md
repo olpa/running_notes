@@ -76,6 +76,14 @@ record normally. The portal displays a prominent warning that guest recordings
 and mailbox credentials are shared publicly and must not be used for private or
 sensitive information.
 
+Guest cumulative quotas are derived from the ordinary per-user quotas using
+`GUEST_QUOTA_FACTOR`, which defaults to `10`. This gives the shared guest 1,000
+notes per UTC day and 2.5 GiB total stored audio with the default user quotas.
+The 25 MiB per-upload limit is not multiplied. `GUEST_RETENTION_HOURS` defaults
+to `24`; an hourly backend task removes expired guest source recordings and the
+corresponding messages from the guest Maildir. Registered-user data is not
+subject to this retention task.
+
 The reserved profile-update endpoint is `PATCH /me`. Profile editing is not yet
 implemented, so ordinary users receive `501`. The guest restriction is already
 enforced first and returns `403`, safeguarding the read-only profile contract
