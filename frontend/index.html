@@ -316,7 +316,7 @@
                 <div id="accountEmail" class="value"></div>
               </div>
             </div>
-            <div class="account-row">
+            <div class="account-row" id="imapPasswordControls">
               <div>
                 <div class="label">IMAP app password</div>
                 <p class="muted">Regenerating replaces the previous IMAP password immediately.</p>
@@ -353,6 +353,7 @@
     const imapSettings = document.getElementById("imapSettings");
     const passwordBox = document.getElementById("passwordBox");
     const newPassword = document.getElementById("newPassword");
+    const imapPasswordControls = document.getElementById("imapPasswordControls");
 
     let mediaRecorder = null;
     let chunks = [];
@@ -405,6 +406,9 @@
       portal.classList.remove("hidden");
       signedInEmail.textContent = user.email;
       accountEmail.textContent = user.email;
+      imapPasswordControls.classList.toggle("hidden", !user.can_change_imap_password);
+      passwordBox.classList.remove("visible");
+      newPassword.textContent = "";
       recordButton.disabled = false;
       showStatus(recordStatus, "Ready");
     }

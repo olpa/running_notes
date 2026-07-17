@@ -46,6 +46,20 @@ docker compose run --rm backend python admin.py reset-imap-password user@example
 
 The reset command prints the new plaintext password once and replaces the previous stored hash.
 
+## Guest user
+
+The backend automatically creates a fixed guest user on startup if it does not
+already exist. Its email defaults to `public@handsfree.vc` and can be changed
+with `GUEST_USER_EMAIL`. The guest is an ordinary active user, except that its
+IMAP password cannot be regenerated through the web portal or API. Set or reset
+its password with the server admin CLI:
+
+```
+docker compose run --rm backend python admin.py reset-imap-password public@handsfree.vc
+```
+
+The automatic creation is idempotent and never resets an existing password.
+
 ## Verify IMAP authentication
 
 After creating a user, verify Dovecot resolves the generated credentials through SQLite:
@@ -120,7 +134,7 @@ openssl s_client \
 
 Once boringproxy forwards public ports 443 and 993, run the checks against the public hostname.
 
-Signed-in users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response.
+Signed-in non-guest users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 
 ## Minimal observability
 

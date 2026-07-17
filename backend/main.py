@@ -33,7 +33,14 @@ from oauth import (
     session_secret,
 )
 from oauth_identities import OAuthIdentityError, get_or_create_oauth_user
-from users import get_user_by_id, reset_imap_password
+from users import (
+    UserAlreadyExistsError,
+    create_user,
+    get_user_by_email,
+    get_user_by_id,
+    normalize_email,
+    reset_imap_password,
+)
 
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
 USER_STATE_DIR = STATE_DIR / "users"
@@ -50,6 +57,9 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
+GUEST_USER_EMAIL = normalize_email(
+    os.environ.get("GUEST_USER_EMAIL", "public@handsfree.vc")
+)
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
 logging.basicConfig(
@@ -75,6 +85,27 @@ oauth = create_oauth_registry()
 @app.on_event("startup")
 def startup():
     initialize_database()
+    ensure_guest_user()
+
+
+def ensure_guest_user() -> None:
+    if get_user_by_email(GUEST_USER_EMAIL) is not None:
+        return
+
+    try:
+        user = create_user(GUEST_USER_EMAIL)
+    except UserAlreadyExistsError:
+        # Another backend startup may have created the fixed account first.
+        return
+    logger.info(
+        "Guest user created user_id=%s email=%s; reset its IMAP password with the admin CLI",
+        user["id"],
+        user["email"],
+    )
+
+
+def can_change_imap_password(user: dict) -> bool:
+    return user["email"] != GUEST_USER_EMAIL
 
 
 def current_active_user(request: Request) -> dict:
@@ -219,7 +250,13 @@ def health():
 
 @app.get("/me")
 def me(request: Request):
-    return {"user": current_active_user(request)}
+    user = current_active_user(request)
+    return {
+        "user": {
+            **user,
+            "can_change_imap_password": can_change_imap_password(user),
+        }
+    }
 
 
 @app.get("/me/imap-settings")
@@ -238,6 +275,11 @@ def imap_settings(request: Request):
 @app.post("/me/imap-password")
 def regenerate_imap_password(request: Request):
     user = current_active_user(request)
+    if not can_change_imap_password(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Guest IMAP password can only be changed by an administrator",
+        )
     reset = reset_imap_password(user["email"])
     logger.info(
         "IMAP password regenerated for user_id=%s email=%s imap_username=%s",

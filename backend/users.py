@@ -167,6 +167,23 @@ def get_user_by_id(user_id: str) -> dict | None:
     return serialize_user(row)
 
 
+def get_user_by_email(email: str) -> dict | None:
+    normalized_email = normalize_email(email)
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, email, status, imap_username
+            FROM users
+            WHERE email = ?
+            """,
+            (normalized_email,),
+        ).fetchone()
+
+    if row is None:
+        return None
+    return serialize_user(row)
+
+
 def normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if not EMAIL_RE.match(normalized):
