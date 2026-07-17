@@ -59,7 +59,7 @@ Unknown users, inactive users, disabled password hashes, and invalid passwords s
 
 ## Recorder uploads
 
-Recording uploads require a signed web session. Audio is accepted only as WebM (`audio/webm`), capped by `MAX_UPLOAD_BYTES` which defaults to 25 MiB, and stored under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Per-user storage is limited by `MAX_USER_NOTES` and `MAX_USER_NOTE_BYTES`, defaulting to 100 notes and 250 MiB.
+Recording uploads require a signed web session. Audio is accepted only as WebM (`audio/webm`), capped by `MAX_UPLOAD_BYTES` which defaults to 25 MiB, and stored under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Each user is limited to `MAX_USER_NOTES_PER_DAY` notes per UTC day (default 100) and `MAX_USER_NOTE_BYTES` total stored audio (default 250 MiB).
 
 
 ## User portal

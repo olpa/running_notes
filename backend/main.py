@@ -41,7 +41,7 @@ MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024))
 MAX_USER_NOTE_BYTES = int(
     os.environ.get("MAX_USER_NOTE_BYTES", str(250 * 1024 * 1024))
 )
-MAX_USER_NOTES = int(os.environ.get("MAX_USER_NOTES", "100"))
+MAX_USER_NOTES_PER_DAY = int(os.environ.get("MAX_USER_NOTES_PER_DAY", "100"))
 ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
@@ -165,27 +165,41 @@ async def read_limited_upload(file: UploadFile) -> bytes:
     return b"".join(chunks)
 
 
-def user_note_usage(notes_dir: Path) -> tuple[int, int]:
-    note_count = 0
+def user_note_usage(notes_dir: Path, day: datetime) -> tuple[int, int]:
+    daily_note_count = 0
     total_bytes = 0
     if not notes_dir.exists():
-        return note_count, total_bytes
+        return daily_note_count, total_bytes
 
     for note_dir in notes_dir.iterdir():
         if not note_dir.is_dir():
             continue
-        note_count += 1
+
+        metadata_path = note_dir / "metadata.json"
+        try:
+            metadata = json.loads(metadata_path.read_text())
+            created_at = datetime.fromisoformat(
+                metadata["created_at"].replace("Z", "+00:00")
+            )
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            logger.warning("Ignoring invalid note metadata for quota: %s", metadata_path)
+        else:
+            if created_at.astimezone(timezone.utc).date() == day.date():
+                daily_note_count += 1
+
         audio_path = note_dir / "audio.webm"
         if audio_path.exists():
             total_bytes += audio_path.stat().st_size
 
-    return note_count, total_bytes
+    return daily_note_count, total_bytes
 
 
-def enforce_user_quota(user_id: str, upload_bytes: int) -> None:
-    note_count, total_bytes = user_note_usage(user_notes_dir(user_id))
-    if note_count >= MAX_USER_NOTES:
-        raise HTTPException(status_code=403, detail="Note quota exceeded")
+def enforce_user_quota(user_id: str, upload_bytes: int, created_at: datetime) -> None:
+    daily_note_count, total_bytes = user_note_usage(
+        user_notes_dir(user_id), created_at
+    )
+    if daily_note_count >= MAX_USER_NOTES_PER_DAY:
+        raise HTTPException(status_code=429, detail="Daily note quota exceeded")
     if total_bytes + upload_bytes > MAX_USER_NOTE_BYTES:
         raise HTTPException(status_code=403, detail="Storage quota exceeded")
 
@@ -323,9 +337,8 @@ async def record(request: Request, file: UploadFile):
     validate_upload_type(file)
 
     audio_bytes = await read_limited_upload(file)
-    enforce_user_quota(user["id"], len(audio_bytes))
-
     created_at = datetime.now(timezone.utc)
+    enforce_user_quota(user["id"], len(audio_bytes), created_at)
     note_id = note_id_for(created_at)
     note_dir = note_dir_for(user["id"], note_id)
     note_dir.mkdir(parents=True, exist_ok=False)
