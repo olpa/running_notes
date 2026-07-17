@@ -75,6 +75,8 @@ services:
 
   dovecot:
     image: dovecot/dovecot:2.4.4
+    environment:
+      GUEST_USER_EMAIL: "${GUEST_USER_EMAIL:-public@handsfree.vc}"
     ports:
       - "127.0.0.1:143:143"   # IMAP
       - "127.0.0.1:993:993"   # IMAPS

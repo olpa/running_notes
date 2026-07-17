@@ -59,6 +59,10 @@ docker compose run --rm backend python admin.py reset-imap-password public@hands
 ```
 
 The automatic creation is idempotent and never resets an existing password.
+The guest mailbox is read-only over IMAP: clients can list mailboxes and read or
+download messages, but cannot change flags, append, move, expunge, create, or
+delete mail. Web recordings continue to arrive through LMTP. Other users retain
+normal read-write IMAP access.
 
 ## Verify IMAP authentication
 
