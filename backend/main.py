@@ -112,6 +112,14 @@ def can_change_imap_password(user: dict) -> bool:
     return user["email"] != GUEST_USER_EMAIL
 
 
+def require_writable_profile(user: dict) -> None:
+    if user["email"] == GUEST_USER_EMAIL:
+        raise HTTPException(
+            status_code=403,
+            detail="Guest profile is read-only",
+        )
+
+
 def current_active_user(request: Request) -> dict:
     user_id = request.session.get("user_id")
     if user_id is None:
@@ -261,6 +269,13 @@ def me(request: Request):
             "can_change_imap_password": can_change_imap_password(user),
         }
     }
+
+
+@app.patch("/me")
+def update_profile(request: Request):
+    user = current_active_user(request)
+    require_writable_profile(user)
+    raise HTTPException(status_code=501, detail="Profile updates are not implemented")
 
 
 @app.get("/me/imap-settings")

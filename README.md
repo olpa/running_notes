@@ -70,6 +70,11 @@ download messages, but cannot change flags, append, move, expunge, create, or
 delete mail. Web recordings continue to arrive through LMTP. Other users retain
 normal read-write IMAP access.
 
+The reserved profile-update endpoint is `PATCH /me`. Profile editing is not yet
+implemented, so ordinary users receive `501`. The guest restriction is already
+enforced first and returns `403`, safeguarding the read-only profile contract
+when profile editing is implemented later.
+
 ## Verify IMAP authentication
 
 After creating a user, verify Dovecot resolves the generated credentials through SQLite:
