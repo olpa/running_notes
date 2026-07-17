@@ -70,6 +70,12 @@ download messages, but cannot change flags, append, move, expunge, create, or
 delete mail. Web recordings continue to arrive through LMTP. Other users retain
 normal read-write IMAP access.
 
+Visitors can enter the shared account without registering through
+`POST /auth/guest` or the **Try without registering** button. Guest sessions can
+record normally. The portal displays a prominent warning that guest recordings
+and mailbox credentials are shared publicly and must not be used for private or
+sensitive information.
+
 The reserved profile-update endpoint is `PATCH /me`. Profile editing is not yet
 implemented, so ordinary users receive `501`. The guest restriction is already
 enforced first and returns `403`, safeguarding the read-only profile contract

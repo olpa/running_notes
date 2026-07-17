@@ -165,6 +165,23 @@
       color: #9f2222;
     }
 
+    .privacy-warning {
+      background: #fff3cd;
+      border: 2px solid #d99b00;
+      border-radius: 8px;
+      color: #5f4100;
+      font-size: 1rem;
+      line-height: 1.5;
+      margin-bottom: 18px;
+      padding: 16px 18px;
+    }
+
+    .privacy-warning strong {
+      display: block;
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+
     .record-button {
       font-size: 1.15rem;
       min-height: 4rem;
@@ -268,6 +285,7 @@
       <div class="login-actions">
         <button class="primary" id="googleLogin" type="button">Sign in with Google</button>
         <button class="secondary" id="microsoftLogin" type="button">Sign in with Microsoft</button>
+        <button class="secondary" id="guestLogin" type="button">Try without registering</button>
       </div>
       <div id="loginStatus" class="status"></div>
     </section>
@@ -280,6 +298,11 @@
         </div>
         <button class="secondary" id="topLogout" type="button">Logout</button>
       </div>
+
+      <aside id="guestPrivacyWarning" class="privacy-warning hidden" role="alert">
+        <strong>Guest recordings are public</strong>
+        Anyone on the internet can use the shared guest mailbox credentials to access recordings made here. Do not record private, personal, or sensitive information. Sign in with your own account for a private mailbox.
+      </aside>
 
       <div class="layout">
         <nav class="sidebar" aria-label="Portal pages">
@@ -355,6 +378,7 @@
     const newPassword = document.getElementById("newPassword");
     const imapPasswordControls = document.getElementById("imapPasswordControls");
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
+    const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
 
     let mediaRecorder = null;
     let chunks = [];
@@ -368,6 +392,8 @@
     document.getElementById("microsoftLogin").addEventListener("click", () => {
       window.location.href = "/auth/login/microsoft";
     });
+
+    document.getElementById("guestLogin").addEventListener("click", guestLogin);
 
     document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => selectTab(tab.dataset.tab));
@@ -407,6 +433,7 @@
       portal.classList.remove("hidden");
       signedInEmail.textContent = user.email;
       accountEmail.textContent = user.email;
+      guestPrivacyWarning.classList.toggle("hidden", !user.is_guest);
       imapPasswordControls.classList.toggle("hidden", !user.can_change_imap_password);
       imapPasswordInstruction.textContent = user.can_change_imap_password
         ? "Generate a new app password on the Account page if you do not have one."
@@ -415,6 +442,17 @@
       newPassword.textContent = "";
       recordButton.disabled = false;
       showStatus(recordStatus, "Ready");
+    }
+
+    async function guestLogin() {
+      showStatus(loginStatus, "Opening public guest account...", "busy");
+      try {
+        const res = await fetch("/auth/guest", { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadSession();
+      } catch (err) {
+        showLoggedOut(`Guest account unavailable: ${err.message}`);
+      }
     }
 
     async function fetchJson(url, options = {}) {

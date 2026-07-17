@@ -109,11 +109,15 @@ def ensure_guest_user() -> None:
 
 
 def can_change_imap_password(user: dict) -> bool:
-    return user["email"] != GUEST_USER_EMAIL
+    return not is_guest_user(user)
+
+
+def is_guest_user(user: dict) -> bool:
+    return user["email"] == GUEST_USER_EMAIL
 
 
 def require_writable_profile(user: dict) -> None:
-    if user["email"] == GUEST_USER_EMAIL:
+    if is_guest_user(user):
         raise HTTPException(
             status_code=403,
             detail="Guest profile is read-only",
@@ -266,6 +270,7 @@ def me(request: Request):
     return {
         "user": {
             **user,
+            "is_guest": is_guest_user(user),
             "can_change_imap_password": can_change_imap_password(user),
         }
     }
@@ -389,6 +394,19 @@ async def oauth_callback(provider: str, request: Request):
 @app.post("/auth/logout", status_code=204)
 def logout(request: Request):
     request.session.clear()
+    return None
+
+
+@app.post("/auth/guest", status_code=204)
+def guest_login(request: Request):
+    user = get_user_by_email(GUEST_USER_EMAIL)
+    if user is None or user["status"] != "active":
+        raise HTTPException(status_code=503, detail="Guest account is unavailable")
+
+    request.session.clear()
+    request.session["user_id"] = user["id"]
+    request.session["login_nonce"] = new_session_nonce()
+    logger.info("Guest login completed user_id=%s email=%s", user["id"], user["email"])
     return None
 
 
