@@ -48,14 +48,21 @@ def serialize_user(row: sqlite3.Row) -> dict:
     }
 
 
-def create_user(email: str) -> dict:
+def create_user(email: str, imap_password: str | None = None) -> dict:
     normalized_email = normalize_email(email)
     user_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     imap_username = normalized_email
-    imap_password = _generate_imap_password()
+    password_source = "generated"
+    if imap_password is None:
+        imap_password = _generate_imap_password()
+    elif not imap_password:
+        raise ValueError("IMAP password must not be empty")
+    else:
+        password_source = "configured"
     logger.info(
-        "IMAP password generated for new user_id=%s email=%s imap_username=%s",
+        "IMAP password %s for new user_id=%s email=%s imap_username=%s",
+        password_source,
         user_id,
         normalized_email,
         imap_username,

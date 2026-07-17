@@ -50,7 +50,8 @@ The reset command prints the new plaintext password once and replaces the previo
 
 The backend automatically creates a fixed guest user on startup if it does not
 already exist. Its email defaults to `public@handsfree.vc` and can be changed
-with `GUEST_USER_EMAIL`. The guest is an ordinary active user, except that its
+with `GUEST_USER_EMAIL`. `GUEST_USER_PASSWORD` is required and sets the initial
+IMAP password when that account is first created. The guest is an ordinary active user, except that its
 IMAP password cannot be regenerated through the web portal or API. Set or reset
 its password with the server admin CLI:
 
@@ -58,7 +59,12 @@ its password with the server admin CLI:
 docker compose run --rm backend python admin.py reset-imap-password public@handsfree.vc
 ```
 
-The automatic creation is idempotent and never resets an existing password.
+The automatic creation is idempotent and never reapplies
+`GUEST_USER_PASSWORD` or resets an existing password.
+The authenticated guest's IMAP setup page displays this configured password;
+ordinary users never receive it. If an administrator resets the guest password
+with the CLI, `GUEST_USER_PASSWORD` must be updated to the newly printed value
+before recreating the backend, so the displayed password remains accurate.
 The guest mailbox is read-only over IMAP: clients can list mailboxes and read or
 download messages, but cannot change flags, append, move, expunge, create, or
 delete mail. Web recordings continue to arrive through LMTP. Other users retain

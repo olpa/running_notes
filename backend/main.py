@@ -60,6 +60,7 @@ PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or 
 GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "public@handsfree.vc")
 )
+GUEST_USER_PASSWORD = os.environ.get("GUEST_USER_PASSWORD", "")
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
 logging.basicConfig(
@@ -92,13 +93,16 @@ def ensure_guest_user() -> None:
     if get_user_by_email(GUEST_USER_EMAIL) is not None:
         return
 
+    if not GUEST_USER_PASSWORD:
+        raise RuntimeError("GUEST_USER_PASSWORD is required to create the guest user")
+
     try:
-        user = create_user(GUEST_USER_EMAIL)
+        user = create_user(GUEST_USER_EMAIL, imap_password=GUEST_USER_PASSWORD)
     except UserAlreadyExistsError:
         # Another backend startup may have created the fixed account first.
         return
     logger.info(
-        "Guest user created user_id=%s email=%s; reset its IMAP password with the admin CLI",
+        "Guest user created user_id=%s email=%s",
         user["id"],
         user["email"],
     )
@@ -262,14 +266,15 @@ def me(request: Request):
 @app.get("/me/imap-settings")
 def imap_settings(request: Request):
     user = current_active_user(request)
-    return {
-        "imap": {
-            "host": public_imap_host(),
-            "port": PUBLIC_IMAP_PORT,
-            "security": PUBLIC_IMAP_SECURITY,
-            "username": user["imap_username"],
-        }
+    settings = {
+        "host": public_imap_host(),
+        "port": PUBLIC_IMAP_PORT,
+        "security": PUBLIC_IMAP_SECURITY,
+        "username": user["imap_username"],
     }
+    if not can_change_imap_password(user):
+        settings["password"] = GUEST_USER_PASSWORD
+    return {"imap": settings}
 
 
 @app.post("/me/imap-password")
