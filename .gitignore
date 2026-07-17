@@ -16,3 +16,5 @@ boringproxy-certs/*
 # Runtime state
 state/*
 !state/.gitkeep
+# Local certificates and private keys
+/certs/
