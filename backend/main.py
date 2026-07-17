@@ -51,6 +51,12 @@ PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
 
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logging.getLogger().setLevel(LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -219,6 +225,12 @@ def imap_settings(request: Request):
 def regenerate_imap_password(request: Request):
     user = current_active_user(request)
     reset = reset_imap_password(user["email"])
+    logger.info(
+        "IMAP password regenerated for user_id=%s email=%s imap_username=%s",
+        reset["id"],
+        reset["email"],
+        reset["imap_username"],
+    )
     return {
         "imap": {
             "username": reset["imap_username"],
@@ -233,10 +245,15 @@ async def oauth_login(provider: str, request: Request):
         client = get_oauth_client(oauth, provider)
         redirect_uri = build_redirect_uri(provider)
     except UnknownOAuthProviderError:
+        logger.warning("OAuth login rejected for unknown provider=%s", provider)
         raise HTTPException(status_code=404, detail="Unknown OAuth provider")
     except OAuthConfigurationError as exc:
+        logger.warning("OAuth login configuration error for provider=%s", provider)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    logger.info(
+        "OAuth login started provider=%s redirect_uri=%s", provider, redirect_uri
+    )
     request.session.clear()
     return await client.authorize_redirect(request, redirect_uri)
 
@@ -253,16 +270,30 @@ async def oauth_callback(provider: str, request: Request):
             provider, provider_subject, email, email_verified
         )
     except UnknownOAuthProviderError:
+        logger.warning("OAuth callback rejected for unknown provider=%s", provider)
         raise HTTPException(status_code=404, detail="Unknown OAuth provider")
     except OAuthConfigurationError as exc:
+        logger.warning("OAuth callback configuration error provider=%s", provider)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except OAuthUserInfoError as exc:
+        logger.warning(
+            "OAuth callback userinfo rejected provider=%s error=%s", provider, exc
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OAuthIdentityError as exc:
+        logger.warning(
+            "OAuth callback identity rejected provider=%s error=%s", provider, exc
+        )
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except OAuthError as exc:
+        logger.warning(
+            "OAuth callback failed provider=%s error=%s",
+            provider,
+            exc.__class__.__name__,
+        )
         raise HTTPException(status_code=400, detail="OAuth login failed") from exc
     except KeyError as exc:
+        logger.warning("OAuth callback missing userinfo provider=%s", provider)
         raise HTTPException(
             status_code=400, detail="OAuth provider did not return user info"
         ) from exc
@@ -270,6 +301,12 @@ async def oauth_callback(provider: str, request: Request):
     request.session.clear()
     request.session["user_id"] = user["id"]
     request.session["login_nonce"] = new_session_nonce()
+    logger.info(
+        "OAuth login completed provider=%s user_id=%s email=%s",
+        provider,
+        user["id"],
+        user["email"],
+    )
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -282,6 +319,7 @@ def logout(request: Request):
 @app.post("/record", status_code=201)
 async def record(request: Request, file: UploadFile):
     user = current_active_user(request)
+    media_type = file.content_type or ""
     validate_upload_type(file)
 
     audio_bytes = await read_limited_upload(file)
@@ -304,6 +342,15 @@ async def record(request: Request, file: UploadFile):
         "user_id": user["id"],
     }
     (note_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+
+    logger.info(
+        "Note uploaded note_id=%s user_id=%s email=%s bytes=%d content_type=%s",
+        note_id,
+        user["id"],
+        user["email"],
+        len(audio_bytes),
+        media_type,
+    )
 
     deliver_via_lmtp(user["imap_username"], note_id, created_at, audio_bytes)
 

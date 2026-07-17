@@ -122,6 +122,23 @@ Once boringproxy forwards public ports 443 and 993, run the checks against the p
 
 Signed-in users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response.
 
+## Minimal observability
+
+Backend logs default to `INFO` and can be changed with `LOG_LEVEL`. Raw logs are intended to reconstruct a user activation and note delivery path without exposing secrets.
+
+Expected backend log events include:
+
+- OAuth login started and completed, with provider, user id, and email where available.
+- OAuth identity linked or reused.
+- User creation and Maildir provisioning failures.
+- IMAP password generation/regeneration without plaintext passwords or hashes.
+- Note upload with note id, user id, email, byte count, and content type.
+- LMTP delivery success, refusal, or failure with note id and recipient.
+
+Dovecot auth logs are available in the Dovecot container logs. Failed auth attempts are made verbose with `auth_verbose = yes`; successful IMAP logins should appear as standard `imap-login Login` lines. Logs must not include OAuth tokens, OAuth authorization codes, session secrets, session cookies, plaintext IMAP passwords, or password hashes.
+
+See `OBSERVABILITY.md` for report-writing guidance and rules for adding new observability points.
+
 ## Web session configuration
 
 OAuth web sessions require `SESSION_SECRET` with at least 32 characters. Local HTTP development should set `SESSION_COOKIE_SECURE=false`; production must leave secure cookies enabled and set `APP_ENV=production`.

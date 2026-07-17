@@ -1,8 +1,11 @@
+import logging
 import sqlite3
 from datetime import datetime, timezone
 
 from database import connect
 from users import UserAlreadyExistsError, create_user, normalize_email, serialize_user
+
+logger = logging.getLogger(__name__)
 
 
 class OAuthIdentityError(ValueError):
@@ -23,6 +26,12 @@ def get_or_create_oauth_user(
         existing_user = _find_user_by_oauth_identity(conn, provider, provider_subject)
         if existing_user is not None:
             _ensure_active_user(existing_user)
+            logger.info(
+                "OAuth identity reused provider=%s user_id=%s email=%s",
+                provider,
+                existing_user["id"],
+                existing_user["email"],
+            )
             return existing_user
 
         user = _find_user_by_email(conn, normalized_email)
@@ -42,6 +51,12 @@ def get_or_create_oauth_user(
         existing_user = _find_user_by_oauth_identity(conn, provider, provider_subject)
         if existing_user is not None:
             _ensure_active_user(existing_user)
+            logger.info(
+                "OAuth identity reused after race provider=%s user_id=%s email=%s",
+                provider,
+                existing_user["id"],
+                existing_user["email"],
+            )
             return existing_user
 
         user = _find_user_by_email(conn, normalized_email)
@@ -64,8 +79,20 @@ def get_or_create_oauth_user(
             if existing_user is None:
                 raise
             _ensure_active_user(existing_user)
+            logger.info(
+                "OAuth identity reused after link conflict provider=%s user_id=%s email=%s",
+                provider,
+                existing_user["id"],
+                existing_user["email"],
+            )
             return existing_user
 
+        logger.info(
+            "OAuth identity linked provider=%s user_id=%s email=%s",
+            provider,
+            user["id"],
+            user["email"],
+        )
         return user
 
 

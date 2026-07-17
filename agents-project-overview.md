@@ -219,6 +219,24 @@ Current behavior:
 
 Runtime acceptance still depends on the operator providing valid local `.env` values. The expected manual check is: start Compose, create or log in as a user, verify Dovecot auth against SQLite, record a note, and confirm Dovecot writes it to that user-specific Maildir.
 
+
+## Ticket #20: Minimal Observability
+
+Ticket `#20` / `MVP2-010: Add Minimal Observability` is implemented structurally.
+
+Current behavior:
+
+- backend logging defaults to `INFO` through `LOG_LEVEL`;
+- OAuth login start, callback failure categories, and login completion are logged without OAuth tokens or authorization codes;
+- OAuth identity reuse/linking is logged with provider, user id, and email;
+- user creation and Maildir provisioning failures are logged;
+- IMAP password generation/regeneration is logged without plaintext passwords or password hashes;
+- note upload logs include note id, user id, email, byte count, and content type;
+- LMTP delivery success/refusal/failure logs include note id and recipient context;
+- Dovecot `auth_verbose = yes` makes failed auth attempts visible, and successful IMAP logins are expected through standard Dovecot `imap-login Login` container log lines.
+
+Do not add logs that print OAuth token payloads, authorization codes, session cookies, `SESSION_SECRET`, plaintext IMAP passwords, or password hashes.
+
 ## Development Notes
 
 There is no committed test suite yet. Existing verification has been done with Python compile checks and temporary SQLite/Maildir smoke tests. Keep new changes small and easy to verify from the command line.

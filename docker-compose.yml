@@ -48,6 +48,7 @@ services:
       MAIL_UID: "1000"
       MAIL_GID: "1000"
       APP_ENV: "${APP_ENV:-development}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
       MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-26214400}"
