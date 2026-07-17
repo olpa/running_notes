@@ -46,6 +46,49 @@ docker compose run --rm backend python admin.py reset-imap-password user@example
 
 The reset command prints the new plaintext password once and replaces the previous stored hash.
 
+## Guest user
+
+The backend automatically creates a fixed guest user on startup if it does not
+already exist. Its email defaults to `public@handsfree.vc` and can be changed
+with `GUEST_USER_EMAIL`. `GUEST_USER_PASSWORD` is required and sets the initial
+IMAP password when that account is first created. The guest is an ordinary active user, except that its
+IMAP password cannot be regenerated through the web portal or API. Set or reset
+its password with the server admin CLI:
+
+```
+docker compose run --rm backend python admin.py reset-imap-password public@handsfree.vc
+```
+
+The automatic creation is idempotent and never reapplies
+`GUEST_USER_PASSWORD` or resets an existing password.
+The authenticated guest's IMAP setup page displays this configured password;
+ordinary users never receive it. If an administrator resets the guest password
+with the CLI, `GUEST_USER_PASSWORD` must be updated to the newly printed value
+before recreating the backend, so the displayed password remains accurate.
+The guest mailbox is read-only over IMAP: clients can list mailboxes and read or
+download messages, but cannot change flags, append, move, expunge, create, or
+delete mail. Web recordings continue to arrive through LMTP. Other users retain
+normal read-write IMAP access.
+
+Visitors can enter the shared account without registering through
+`POST /auth/guest` or the **Try without registering** button. Guest sessions can
+record normally. The portal displays a prominent warning that guest recordings
+and mailbox credentials are shared publicly and must not be used for private or
+sensitive information.
+
+Guest cumulative quotas are derived from the ordinary per-user quotas using
+`GUEST_QUOTA_FACTOR`, which defaults to `10`. This gives the shared guest 1,000
+notes per UTC day and 2.5 GiB total stored audio with the default user quotas.
+The 25 MiB per-upload limit is not multiplied. `GUEST_RETENTION_HOURS` defaults
+to `24`; an hourly backend task removes expired guest source recordings and the
+corresponding messages from the guest Maildir. Registered-user data is not
+subject to this retention task.
+
+The reserved profile-update endpoint is `PATCH /me`. Profile editing is not yet
+implemented, so ordinary users receive `501`. The guest restriction is already
+enforced first and returns `403`, safeguarding the read-only profile contract
+when profile editing is implemented later.
+
 ## Verify IMAP authentication
 
 After creating a user, verify Dovecot resolves the generated credentials through SQLite:
@@ -120,7 +163,7 @@ openssl s_client \
 
 Once boringproxy forwards public ports 443 and 993, run the checks against the public hostname.
 
-Signed-in users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response.
+Signed-in non-guest users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 
 ## Minimal observability
 

@@ -113,6 +113,7 @@ Current behavior:
 - SQL passdb selects only active users with non-disabled password hashes;
 - SQL userdb selects only active users with non-disabled password hashes and returns numeric UID/GID `1000:1000`;
 - SQL userdb derives `home` and `mail_path` as `/var/mail/voiceinbox/users/<user-id>`;
+- SQL userdb assigns the configured guest to an ACL group whose IMAP access is read-only;
 - static `voiceinbox/voiceinbox` authentication has been removed.
 
 Expected verification once Docker access is available:
