@@ -18,7 +18,7 @@ export BORINGPROXY_TOKEN=<boringproxy-token>
 docker compose up
 ```
 
-Afterwards, create a user and point the IMAP client to `localhost`. Use the user email as the IMAP username and the one-time password printed by the admin command.
+Afterwards, create a user and point the IMAP client to `localhost:11993`. Use the user email as the IMAP username and the one-time password printed by the admin command. The default loopback-only host ports are HTTP `18080`, HTTPS `18443`, IMAP `10143`, and IMAPS `11993`; override them with `HTTP_PORT`, `HTTPS_PORT`, `IMAP_PORT`, and `IMAPS_PORT` in `.env` if needed.
 
 ## Container configuration
 
@@ -121,7 +121,7 @@ If `PUBLIC_IMAP_HOST` is unset, the backend derives the host from `PUBLIC_BASE_U
 
 ## TLS certificates
 
-boringproxy forwards HTTPS and IMAPS as raw TCP. TLS terminates inside this stack: nginx serves HTTPS on port 443 and Dovecot serves IMAPS on port 993.
+boringproxy forwards HTTPS and IMAPS as raw TCP. TLS terminates inside this stack: nginx serves HTTPS on container port 443 and Dovecot serves IMAPS on container port 993. Compose maps those listeners to loopback-only host ports `18443` and `11993` by default.
 
 By default, both services use the existing Let's Encrypt certificate at these ignored local paths:
 
@@ -143,11 +143,11 @@ The files must exist before starting the stack. After replacing or renewing them
 docker compose up -d --force-recreate nginx dovecot
 ```
 
-Configure boringproxy with TCP-level tunnels targeting nginx port 443 and Dovecot port 993. Do not enable TLS termination in boringproxy. Verify both local listeners before configuring the public tunnels:
+Configure boringproxy with TCP-level tunnels targeting host ports `18443` for nginx and `11993` for Dovecot (or the corresponding overrides). Do not enable TLS termination in boringproxy. Verify both local listeners before configuring the public tunnels:
 
 ```
 openssl s_client \
-  -connect 127.0.0.1:443 \
+  -connect 127.0.0.1:18443 \
   -servername notes-dev.handsfree.vc \
   -verify_hostname notes-dev.handsfree.vc \
   -verify_return_error </dev/null
@@ -155,7 +155,7 @@ openssl s_client \
 
 ```
 openssl s_client \
-  -connect 127.0.0.1:993 \
+  -connect 127.0.0.1:11993 \
   -servername notes-dev.handsfree.vc \
   -verify_hostname notes-dev.handsfree.vc \
   -verify_return_error </dev/null
