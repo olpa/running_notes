@@ -1,6 +1,6 @@
 # boringproxy reinstall runbook
 
-This document records the non-obvious parts of the working setup as of 2026-07-17.
+This document records the non-obvious parts of the working setup as of 2026-07-19.
 
 ## Purpose and topology
 
@@ -192,9 +192,18 @@ The setup supports IPv4 and IPv6. Add this block before the `*filter` section in
 # boringproxy IMAPS: public 993 to unprivileged SSH tunnel 10993
 *nat
 :PREROUTING ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
 -A PREROUTING -p tcp --dport 993 -j REDIRECT --to-ports 10993
+-A OUTPUT -p tcp -d 195.201.133.151 --dport 993 -j REDIRECT --to-ports 10993
 COMMIT
 ```
+
+`PREROUTING` handles connections arriving from other machines. Connections
+originating on the boringproxy/firewall host traverse `OUTPUT` instead, so the
+second rule is required for host-local clients and verification commands. Keep
+the `OUTPUT` rule restricted to the public address of the server; an unrestricted
+destination match could unexpectedly redirect connections intended for other
+IMAP servers.
 
 Immediately after the loopback INPUT acceptance in the same file, add:
 
@@ -204,7 +213,9 @@ Immediately after the loopback INPUT acceptance in the same file, add:
 -A ufw-before-input -p tcp --dport 10993 -j DROP
 ```
 
-Add the equivalent NAT block before `*filter` in `/etc/ufw/before6.rules`, then add after its loopback INPUT rule:
+Add the equivalent NAT block before `*filter` in `/etc/ufw/before6.rules`, using
+the public IPv6 address of the server for its `OUTPUT` rule, then add after its
+loopback INPUT rule:
 
 ```text
 -A ufw6-before-input -p tcp --dport 10993 -m conntrack --ctorigdstport 993 --ctdir ORIGINAL -j ACCEPT
@@ -226,8 +237,10 @@ Verify live rules:
 
 ```bash
 sudo iptables -t nat -S PREROUTING | grep 10993
+sudo iptables -t nat -S OUTPUT | grep 10993
 sudo iptables -S ufw-before-input | grep 10993
 sudo ip6tables -t nat -S PREROUTING | grep 10993
+sudo ip6tables -t nat -S OUTPUT | grep 10993
 sudo ip6tables -S ufw6-before-input | grep 10993
 ```
 
@@ -275,7 +288,8 @@ curl -v https://notes-dev.handsfree.vc/
 openssl s_client -connect notes-dev.handsfree.vc:443 -servername notes-dev.handsfree.vc
 ```
 
-IMAPS passthrough, tested from another machine:
+IMAPS passthrough on the standard client port, tested from another machine or
+from the boringproxy host when the matching `OUTPUT` redirect is installed:
 
 ```bash
 openssl s_client -connect notes-dev.handsfree.vc:993 -servername notes-dev.handsfree.vc
@@ -283,9 +297,32 @@ openssl s_client -connect notes-dev.handsfree.vc:993 -servername notes-dev.hands
 
 The certificate shown by these commands should be the application-side nginx/Dovecot certificate, not a boringproxy-generated certificate.
 
-Because 993 is redirected rather than directly bound, `ss`/`netstat` shows 10993, not 993. External connection testing is the correct verification for public 993.
+Because 993 is redirected rather than directly bound, `ss`/`netstat` shows
+10993, not 993. A successful TLS connection on 993 is the correct end-to-end
+verification; no process is expected to listen directly on 993.
 
 ## Troubleshooting map
+
+### Port 993 is refused only when tested on the boringproxy host
+
+If external connections work but this command fails locally with
+`BIO_connect: Connection refused`:
+
+```bash
+openssl s_client -connect notes-dev.handsfree.vc:993 -servername notes-dev.handsfree.vc
+```
+
+check both NAT hooks:
+
+```bash
+sudo iptables -t nat -S PREROUTING | grep 10993
+sudo iptables -t nat -S OUTPUT | grep 10993
+```
+
+An inbound-only `PREROUTING` redirect does not process connections generated on
+the same host. Add the narrowly scoped `OUTPUT` redirect shown in the UFW
+section. The downstream tunnel can be checked independently on port 10993, but
+mail clients should continue using standard IMAPS port 993.
 
 ### `tcpip-forward request denied by peer`
 
@@ -328,4 +365,3 @@ notes-dev.handsfree.vc.10993    # IMAPS record identifier
 ```
 
 The `.10993` suffix is an internal database identifier, not a DNS name.
-
