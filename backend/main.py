@@ -15,10 +15,12 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from authlib.integrations.base_client.errors import OAuthError
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import initialize_database
+from mailbox import DoveadmMailbox, MailboxError, MailReference
+from messages import extract_audio, parse_message_summary
 from oauth import (
     OAuthConfigurationError,
     OAuthUserInfoError,
@@ -56,6 +58,9 @@ MAX_USER_NOTE_BYTES = int(
 MAX_USER_NOTES_PER_DAY = int(os.environ.get("MAX_USER_NOTES_PER_DAY", "100"))
 GUEST_QUOTA_FACTOR = int(os.environ.get("GUEST_QUOTA_FACTOR", "10"))
 GUEST_RETENTION_HOURS = int(os.environ.get("GUEST_RETENTION_HOURS", "24"))
+WEB_MESSAGE_LIMIT = int(os.environ.get("WEB_MESSAGE_LIMIT", "100"))
+DOVEADM_URL = os.environ.get("DOVEADM_URL", "http://dovecot:8080/doveadm/v1")
+DOVEADM_PASSWORD = os.environ.get("DOVEADM_PASSWORD", "")
 GUEST_RETENTION_CHECK_SECONDS = 60 * 60
 ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
@@ -74,6 +79,9 @@ GUEST_USER_PASSWORD = os.environ.get("GUEST_USER_PASSWORD", "")
 
 if GUEST_QUOTA_FACTOR < 1:
     raise ValueError("GUEST_QUOTA_FACTOR must be at least 1")
+if WEB_MESSAGE_LIMIT < 1:
+    raise ValueError("WEB_MESSAGE_LIMIT must be at least 1")
+
 if GUEST_RETENTION_HOURS < 1:
     raise ValueError("GUEST_RETENTION_HOURS must be at least 1")
 
@@ -96,6 +104,7 @@ app.add_middleware(
     https_only=session_cookie_secure(),
 )
 oauth = create_oauth_registry()
+mailbox = DoveadmMailbox(DOVEADM_URL, DOVEADM_PASSWORD)
 
 
 @app.on_event("startup")
@@ -586,3 +595,41 @@ def get_audio(note_id: str, request: Request):
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(audio_path, media_type="audio/webm")
+
+@app.get("/messages")
+def list_messages(request: Request):
+    user = current_active_user(request)
+    try:
+        references = mailbox.latest_references(user["imap_username"], WEB_MESSAGE_LIMIT)
+        raw_messages = mailbox.fetch_messages(user["imap_username"], references)
+    except MailboxError as exc:
+        logger.exception("Dovecot message listing failed user_id=%s", user["id"])
+        raise HTTPException(status_code=503, detail="Mailbox is unavailable") from exc
+    messages = []
+    for reference, raw in raw_messages:
+        try:
+            messages.append(parse_message_summary(raw, reference.key))
+        except Exception:
+            logger.warning("Ignoring malformed mailbox message user_id=%s uid=%s", user["id"], reference.uid)
+    return {"messages": messages, "limit": WEB_MESSAGE_LIMIT}
+
+
+@app.get("/messages/{message_key}/audio/{audio_index}")
+def message_audio(message_key: str, audio_index: int, request: Request):
+    user = current_active_user(request)
+    try:
+        reference = MailReference.from_key(message_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Message not found") from exc
+    try:
+        raw = mailbox.fetch_message(user["imap_username"], reference)
+    except MailboxError as exc:
+        logger.exception("Dovecot audio fetch failed user_id=%s", user["id"])
+        raise HTTPException(status_code=503, detail="Mailbox is unavailable") from exc
+    if raw is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    audio = extract_audio(raw, audio_index)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Audio attachment not found")
+    payload, content_type, _filename = audio
+    return Response(payload, media_type=content_type)
