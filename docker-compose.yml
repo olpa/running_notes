@@ -62,6 +62,9 @@ services:
       GUEST_USER_PASSWORD: "${GUEST_USER_PASSWORD:?GUEST_USER_PASSWORD is required}"
       GUEST_QUOTA_FACTOR: "${GUEST_QUOTA_FACTOR:-10}"
       GUEST_RETENTION_HOURS: "${GUEST_RETENTION_HOURS:-24}"
+      WEB_MESSAGE_LIMIT: "${WEB_MESSAGE_LIMIT:-100}"
+      DOVEADM_URL: "http://dovecot:8080/doveadm/v1"
+      DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:?DOVEADM_PASSWORD is required}"
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
       GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-}"
@@ -87,6 +90,8 @@ services:
       - ${TLS_PRIVATE_KEY_PATH:-./certs/letsencrypt/live/notes.handsfree.vc/privkey.pem}:/etc/dovecot/tls/privkey.pem:ro
       - ./maildir:/var/mail/voiceinbox
       - ./state:/state:ro
+    environment:
+      DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:?DOVEADM_PASSWORD is required}"
     networks:
       - frontend
       - backend
