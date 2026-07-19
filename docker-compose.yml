@@ -58,7 +58,7 @@ services:
       PUBLIC_IMAP_HOST: "${PUBLIC_IMAP_HOST:-}"
       PUBLIC_IMAP_PORT: "${PUBLIC_IMAP_PORT:-993}"
       PUBLIC_IMAP_SECURITY: "${PUBLIC_IMAP_SECURITY:-TLS}"
-      GUEST_USER_EMAIL: "${GUEST_USER_EMAIL:-public@handsfree.vc}"
+      GUEST_USER_EMAIL: "${GUEST_USER_EMAIL:-}"
       GUEST_USER_PASSWORD: "${GUEST_USER_PASSWORD:?GUEST_USER_PASSWORD is required}"
       GUEST_QUOTA_FACTOR: "${GUEST_QUOTA_FACTOR:-10}"
       GUEST_RETENTION_HOURS: "${GUEST_RETENTION_HOURS:-24}"
@@ -78,8 +78,6 @@ services:
 
   dovecot:
     image: dovecot/dovecot:2.4.4
-    environment:
-      GUEST_USER_EMAIL: "${GUEST_USER_EMAIL:-public@handsfree.vc}"
     ports:
       - "127.0.0.1:${IMAP_PORT:-10143}:143"   # IMAP
       - "127.0.0.1:${IMAPS_PORT:-11993}:993"  # IMAPS

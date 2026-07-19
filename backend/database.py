@@ -25,7 +25,8 @@ def initialize_database() -> None:
                 status TEXT NOT NULL DEFAULT 'active',
 
                 imap_username TEXT NOT NULL UNIQUE,
-                imap_password_hash TEXT NOT NULL
+                imap_password_hash TEXT NOT NULL,
+                is_guest INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS oauth_identities (
@@ -40,3 +41,11 @@ def initialize_database() -> None:
             );
             """
         )
+
+        columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        if "is_guest" not in columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0"
+            )

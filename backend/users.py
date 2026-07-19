@@ -191,6 +191,45 @@ def get_user_by_email(email: str) -> dict | None:
     return serialize_user(row)
 
 
+def rename_user_email(user_id: str, email: str) -> dict:
+    normalized_email = normalize_email(email)
+    try:
+        with connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE users
+                SET email = ?, imap_username = ?
+                WHERE id = ?
+                """,
+                (normalized_email, normalized_email, user_id),
+            )
+    except sqlite3.IntegrityError as exc:
+        raise UserAlreadyExistsError(normalized_email) from exc
+
+    if cursor.rowcount != 1:
+        raise UserNotFoundError(user_id)
+
+    logger.info(
+        "User email renamed user_id=%s email=%s imap_username=%s",
+        user_id,
+        normalized_email,
+        normalized_email,
+    )
+    return get_user_by_id(user_id)
+
+
+def mark_user_as_guest(user_id: str) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE users SET is_guest = 0 WHERE is_guest != 0")
+        cursor = conn.execute(
+            "UPDATE users SET is_guest = 1 WHERE id = ?",
+            (user_id,),
+        )
+
+    if cursor.rowcount != 1:
+        raise UserNotFoundError(user_id)
+
+
 def normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if not EMAIL_RE.match(normalized):
