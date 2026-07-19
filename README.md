@@ -223,3 +223,25 @@ Callback endpoints configured with providers:
 /auth/callback/google
 /auth/callback/microsoft
 ```
+
+## Web mailbox
+
+The authenticated portal includes a read-only Messages page. It shows the
+newest messages in the user's INBOX and plays audio MIME attachments without
+exposing Maildir paths or offering reply, forward, flag, move, or delete actions.
+
+WEB_MESSAGE_LIMIT is read when the backend starts, defaults to 100, and must be
+a positive integer. It is an administrator limit and cannot be overridden by a
+web request.
+
+The backend does not read Maildir files for this page. It uses Dovecot's internal
+doveadm HTTP interface, which is restricted to the fetch command and reachable
+only on the Compose backend network. Configure a strong shared secret before
+starting or recreating the stack:
+
+    DOVEADM_PASSWORD=<strong-random-secret>
+    WEB_MESSAGE_LIMIT=100
+
+The same DOVEADM_PASSWORD is supplied to the backend and Dovecot containers. It
+grants mailbox read access and must not be logged, committed, or exposed on a
+host port.
