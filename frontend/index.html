@@ -263,13 +263,20 @@
       margin-top: 16px;
     }
 
+    .message-list { display: grid; gap: 12px; }
+    .message { border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    .message-header { display: flex; gap: 8px; justify-content: space-between; }
+    .message-subject { font-weight: 700; }
+    .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+    .message audio { margin-top: 10px; max-width: 100%; width: 360px; }
+    .panel-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 14px; }
     .hidden { display: none !important; }
 
     @media (max-width: 720px) {
       .app { width: min(100% - 20px, 1040px); padding-top: 14px; }
       .topbar { align-items: flex-start; flex-direction: column; gap: 8px; }
       .layout { grid-template-columns: 1fr; }
-      .sidebar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .sidebar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .tab { justify-content: center; padding-left: 6px; padding-right: 6px; }
       .setting-row { grid-template-columns: 1fr; }
       .setting-row button { width: 100%; }
@@ -307,11 +314,17 @@
       <div class="layout">
         <nav class="sidebar" aria-label="Portal pages">
           <button class="tab" data-tab="record" aria-selected="true" type="button">Record</button>
+          <button class="tab" data-tab="messages" aria-selected="false" type="button">Messages</button>
           <button class="tab" data-tab="imap" aria-selected="false" type="button">IMAP</button>
           <button class="tab" data-tab="account" aria-selected="false" type="button">Account</button>
         </nav>
 
         <div class="main">
+          <section class="panel" id="messagesPanel">
+            <div class="panel-heading"><h2>Messages</h2><button class="secondary" id="reloadMessages" type="button">Reload</button></div>
+            <div id="messageList" class="message-list"></div>
+            <div id="messagesStatus" class="status"></div>
+          </section>
           <section class="panel active" id="recordPanel">
             <h2>Record note</h2>
             <button class="primary record-button" id="recordButton" disabled type="button">Record</button>
@@ -380,6 +393,8 @@
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
     const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
     const guestRetentionHours = document.getElementById("guestRetentionHours");
+    const messageList = document.getElementById("messageList");
+    const messagesStatus = document.getElementById("messagesStatus");
 
     let mediaRecorder = null;
     let chunks = [];
@@ -403,11 +418,13 @@
     document.getElementById("topLogout").addEventListener("click", logout);
     document.getElementById("accountLogout").addEventListener("click", logout);
     document.getElementById("regeneratePassword").addEventListener("click", regeneratePassword);
+    document.getElementById("reloadMessages").addEventListener("click", loadMessages);
     document.getElementById("copyPassword").addEventListener("click", (event) => {
       copyText(newPassword.textContent, accountStatus, event.currentTarget);
     });
 
     function selectTab(name) {
+      if (name === "messages") loadMessages();
       document.querySelectorAll(".tab").forEach((tab) => {
         tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
       });
@@ -482,6 +499,34 @@
       } catch (err) {
         showLoggedOut(`Session check failed: ${err.message}`);
       }
+    }
+
+    async function loadMessages() {
+      showStatus(messagesStatus, "Loading...", "busy");
+      try {
+        const data = await fetchJson("/messages");
+        renderMessages(data.messages);
+        showStatus(messagesStatus, data.messages.length ? "" : "No messages");
+      } catch (err) {
+        if (err.message !== "Not signed in") showStatus(messagesStatus, "Messages unavailable: " + err.message, "error");
+      }
+    }
+
+    function renderMessages(messages) {
+      messageList.replaceChildren(...messages.map((message) => {
+        const article = document.createElement("article"); article.className = "message";
+        const header = document.createElement("div"); header.className = "message-header";
+        const subject = document.createElement("div"); subject.className = "message-subject"; subject.textContent = message.subject;
+        const date = document.createElement("time"); date.className = "muted"; date.textContent = message.date ? new Date(message.date).toLocaleString() : "";
+        const from = document.createElement("div"); from.className = "message-meta"; from.textContent = message.from;
+        const preview = document.createElement("div"); preview.className = "message-preview"; preview.textContent = message.preview;
+        header.append(subject, date); article.append(header, from, preview);
+        message.audio.forEach((attachment) => {
+          const audio = document.createElement("audio"); audio.controls = true; audio.preload = "none";
+          audio.src = "/messages/" + encodeURIComponent(message.id) + "/audio/" + attachment.index; article.append(audio);
+        });
+        return article;
+      }));
     }
 
     async function loadImapSettings() {
