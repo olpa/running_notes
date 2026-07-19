@@ -22,5 +22,6 @@ class DoveadmMailboxTests(unittest.TestCase):
         response = Mock(); response.raise_for_status.return_value = None
         response.json.return_value = [["error", {"exitCode":75}, "mail"]]; post.return_value = response
         with self.assertRaises(MailboxError): self.mailbox.latest_references("alice", 100)
+        self.assertTrue(post.call_args.kwargs["headers"]["Authorization"].startswith("X-Dovecot-API "))
 
 if __name__ == "__main__": unittest.main()

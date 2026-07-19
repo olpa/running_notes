@@ -41,7 +41,8 @@ class DoveadmMailbox:
     def _fetch(self, user: str, fields: list[str], query: list[str]) -> list[dict]:
         payload = [["fetch", {"user": user, "field": fields, "query": query}, "mail"]]
         try:
-            response = httpx.post(self.url, auth=("doveadm", self.password), json=payload, timeout=self.timeout_seconds)
+            encoded_key = base64.b64encode(self.password.encode()).decode()
+            response = httpx.post(self.url, headers={"Authorization": f"X-Dovecot-API {encoded_key}", "X-API-Key": encoded_key}, json=payload, timeout=self.timeout_seconds)
             response.raise_for_status()
             result = response.json()
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
