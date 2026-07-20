@@ -1,3 +1,9 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   nginx:
     image: nginx:alpine
@@ -13,6 +19,12 @@ services:
       - backend
     networks:
       - frontend
+    # Static files and reverse proxying need very little memory at this load.
+    mem_reservation: 8m
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
+    logging: *default-logging
     restart: unless-stopped
 
   boringproxy-client:
@@ -39,6 +51,11 @@ services:
       - nginx
     networks:
       - frontend
+    mem_reservation: 8m
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
+    logging: *default-logging
     restart: unless-stopped
 
   backend:
@@ -77,6 +94,13 @@ services:
     networks:
       - frontend
       - backend
+    # Five maximum-size uploads may temporarily occupy about 125 MiB in
+    # addition to the Python process and request-processing overhead.
+    mem_reservation: 96m
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 128
+    logging: *default-logging
     restart: unless-stopped
 
   dovecot:
@@ -95,6 +119,11 @@ services:
     networks:
       - frontend
       - backend
+    mem_reservation: 32m
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    logging: *default-logging
     restart: unless-stopped
 
 networks:

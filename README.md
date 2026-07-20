@@ -24,6 +24,29 @@ Afterwards, create a user and point the IMAP client to `localhost:11993`. Use th
 
 Compose persists shared application state in `./state`, mounted as `/state` in the backend and read-only in Dovecot. SQLite user and OAuth identity rows live in `/state/users.db`. Backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`; backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`, and Dovecot SQL userdb derives each user mailbox path from the same stable user id.
 
+### Production resource budget
+
+The Compose resource settings are sized for up to 100 registered users and five
+simultaneously active users. They reserve 144 MiB of memory and cap the stack at
+768 MiB of memory and 2 CPU cores in aggregate. Reservations are scheduling
+hints/soft guarantees; the limits protect other workloads on a shared host from
+runaway memory, CPU, and process usage. Docker must have at least 1 GiB of RAM
+available to this stack so the containers can approach their limits without
+forcing the host to swap.
+
+The backend receives the largest allowance because each in-flight upload is
+currently buffered in memory. Five uploads at the default 25 MiB maximum can
+therefore add about 125 MiB before Python and request-processing overhead.
+Container JSON logs are rotated at 10 MiB with three files per service, bounding
+their approximate retained size at 120 MiB for the stack.
+
+These are starting values, not capacity-test results. After deployment, monitor
+container memory, CPU, restarts/OOM kills, disk usage, response latency, and
+upload failures during a representative peak. Raise a limit only when the
+measurements show sustained pressure; a growing baseline after traffic subsides
+should be investigated as a leak.
+
+
 Backend and Dovecot both use numeric mail ownership `1000:1000` through `MAIL_UID`, `MAIL_GID`, and Dovecot `mail_uid`/`mail_gid`, so backend-created Maildirs are writable by Dovecot. The old single shared mailbox model is not used.
 
 ## Create a user
