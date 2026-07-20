@@ -24,6 +24,23 @@ Afterwards, create a user and point the IMAP client to `localhost:11993`. Use th
 
 Compose persists shared application state in `./state`, mounted as `/state` in the backend and read-only in Dovecot. SQLite user and OAuth identity rows live in `/state/users.db`. Backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`; backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`, and Dovecot SQL userdb derives each user mailbox path from the same stable user id.
 
+For production, `docker-compose.production.yml` excludes boringproxy, publishes
+only HTTPS on port 443 and IMAPS on port 993. Set `RUNNING_NOTES_ROOT` in `.env`
+to the host directory containing `state`, `maildir`, and `certs`, then use the
+production start script:
+
+```bash
+RUNNING_NOTES_ROOT=/path/to/running-notes-data
+/rnotes/start-production.sh
+```
+
+Before starting a new release, pull the pinned upstream image and build the
+explicitly tagged frontend and backend images:
+
+```bash
+make production-images
+```
+
 ### Production resource budget
 
 The Compose resource settings are sized for up to 100 registered users and five
