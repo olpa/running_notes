@@ -363,14 +363,29 @@
           </section>
 
           <section class="panel" id="imapPanel">
-            <h2>IMAP setup</h2>
+            <h2>Mail client setup</h2>
+            <p class="muted">Enter the email address first. If your mail client cannot detect the settings automatically, use the details below.</p>
             <div class="settings-grid" id="imapSettings"></div>
-            <h3>Outlook</h3>
+            <div class="account-row" id="imapPasswordControls">
+              <div>
+                <div class="label">Mail app password</div>
+                <p class="muted">Regenerating replaces the previous password immediately.</p>
+              </div>
+              <button class="danger" id="regeneratePassword" type="button">Regenerate</button>
+            </div>
+            <div id="passwordBox" class="password-box">
+              <div class="label">New password</div>
+              <div id="newPassword" class="value"></div>
+              <div class="actions">
+                <button class="secondary" id="copyPassword" type="button">Copy password</button>
+              </div>
+            </div>
+            <h3>Manual setup</h3>
             <ol class="instructions">
-              <li>Add an IMAP account manually.</li>
-              <li>Use the email address shown as the IMAP username.</li>
-              <li>Use SSL/TLS and the port shown here.</li>
-              <li id="imapPasswordInstruction">Generate a new app password on the Account page if you do not have one.</li>
+              <li>Add an IMAP account and use the displayed email address as the username.</li>
+              <li>Incoming mail uses port <span id="imapPortInstruction">993</span> with SSL/TLS.</li>
+              <li>Outgoing mail uses port 587 with STARTTLS.</li>
+              <li id="imapPasswordInstruction">Generate a new app password here if you do not have one.</li>
             </ol>
             <div id="imapStatus" class="status"></div>
           </section>
@@ -381,20 +396,6 @@
               <div>
                 <div class="label">Signed in as</div>
                 <div id="accountEmail" class="value"></div>
-              </div>
-            </div>
-            <div class="account-row" id="imapPasswordControls">
-              <div>
-                <div class="label">IMAP app password</div>
-                <p class="muted">Regenerating replaces the previous IMAP password immediately.</p>
-              </div>
-              <button class="danger" id="regeneratePassword" type="button">Regenerate</button>
-            </div>
-            <div id="passwordBox" class="password-box">
-              <div class="label">New password</div>
-              <div id="newPassword" class="value"></div>
-              <div class="actions">
-                <button class="secondary" id="copyPassword" type="button">Copy password</button>
               </div>
             </div>
             <div class="actions">
@@ -427,6 +428,7 @@
     const newPassword = document.getElementById("newPassword");
     const imapPasswordControls = document.getElementById("imapPasswordControls");
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
+    const imapPortInstruction = document.getElementById("imapPortInstruction");
     const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
     const guestRetentionHours = document.getElementById("guestRetentionHours");
     const messageList = document.getElementById("messageList");
@@ -435,6 +437,7 @@
     let mediaRecorder = null;
     let chunks = [];
     let signedIn = false;
+    let currentUser = null;
     let currentSettings = null;
 
     document.getElementById("googleLogin").addEventListener("click", () => {
@@ -456,7 +459,7 @@
     document.getElementById("regeneratePassword").addEventListener("click", regeneratePassword);
     document.getElementById("reloadMessages").addEventListener("click", loadMessages);
     document.getElementById("copyPassword").addEventListener("click", (event) => {
-      copyText(newPassword.textContent, accountStatus, event.currentTarget);
+      copyText(newPassword.textContent, imapStatus, event.currentTarget);
     });
 
     function selectTab(name) {
@@ -483,6 +486,7 @@
 
     function showPortal(user) {
       signedIn = true;
+      currentUser = user;
       login.classList.add("hidden");
       portal.classList.remove("hidden");
       signedInEmail.textContent = user.email;
@@ -491,7 +495,7 @@
       if (user.is_guest) guestRetentionHours.textContent = String(user.guest_retention_hours);
       imapPasswordControls.classList.toggle("hidden", !user.can_change_imap_password);
       imapPasswordInstruction.textContent = user.can_change_imap_password
-        ? "Generate a new app password on the Account page if you do not have one."
+        ? "Generate a new app password here if you do not have one."
         : "Use the guest password shown with these settings.";
       passwordBox.classList.remove("visible");
       newPassword.textContent = "";
@@ -579,11 +583,19 @@
     }
 
     function renderImapSettings(settings) {
+      const emailAddress = mailClientAddress(currentUser, settings.host);
+      imapPortInstruction.textContent = String(settings.port);
       const rows = [
-        ["Host", settings.host],
-        ["Port", String(settings.port)],
-        ["Security", settings.security],
-        ["Username", settings.username],
+        ["Email address", emailAddress],
+        ["Username", emailAddress],
+        ["Incoming server (IMAP)", settings.host],
+        ["Incoming port", String(settings.port)],
+        ["Incoming connection security", "SSL/TLS"],
+        ["Incoming authentication method", "Normal password"],
+        ["Outgoing server (SMTP)", settings.host],
+        ["Outgoing port", "587"],
+        ["Outgoing connection security", "STARTTLS"],
+        ["Outgoing authentication method", "Normal password"],
       ];
       if (settings.password) rows.push(["Password", settings.password]);
       imapSettings.replaceChildren(...rows.map(([label, value]) => {
@@ -607,6 +619,24 @@
         row.append(labelEl, valueEl, copy);
         return row;
       }));
+    }
+
+    function mailClientAddress(user, host) {
+      const localPart = user.email.split("@", 1)[0]
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, "-")
+        .replace(/^[._-]+|[._-]+$/g, "")
+        .slice(0, 48) || "user";
+      const seed = `${user.email.toLowerCase()}\u0000${user.id}`;
+      let hash = 2166136261;
+      for (const character of seed) {
+        hash ^= character.codePointAt(0);
+        hash = Math.imul(hash, 16777619);
+      }
+      const suffix = String(hash >>> 0).slice(-4).padStart(4, "0");
+      return `${localPart}-${suffix}@${host}`;
     }
 
     async function copyText(value, statusEl, button) {
@@ -647,7 +677,7 @@
       const confirmed = window.confirm("Regenerate the IMAP password? The old password will stop working immediately.");
       if (!confirmed) return;
 
-      showStatus(accountStatus, "Regenerating...", "busy");
+      showStatus(imapStatus, "Regenerating...", "busy");
       passwordBox.classList.remove("visible");
       newPassword.textContent = "";
 
@@ -659,9 +689,9 @@
           currentSettings.username = data.imap.username;
           renderImapSettings(currentSettings);
         }
-        showStatus(accountStatus, "Password regenerated. Copy it now; it will not be shown again.", "success");
+        showStatus(imapStatus, "Password regenerated. Copy it now; it will not be shown again.", "success");
       } catch (err) {
-        if (err.message !== "Not signed in") showStatus(accountStatus, `Regeneration failed: ${err.message}`, "error");
+        if (err.message !== "Not signed in") showStatus(imapStatus, `Regeneration failed: ${err.message}`, "error");
       }
     }
 
