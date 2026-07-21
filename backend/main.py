@@ -18,6 +18,12 @@ from authlib.integrations.base_client.errors import OAuthError
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
+from autoconfig import (
+    AutoconfigRequestError,
+    outlook_request_email,
+    outlook_response_xml,
+    thunderbird_config_xml,
+)
 from database import initialize_database
 from mailbox import DoveadmMailbox, MailboxError, MailReference
 from messages import extract_audio, parse_message_summary
@@ -39,6 +45,7 @@ from oauth import (
 from oauth_identities import OAuthIdentityError, get_or_create_oauth_user
 from users import (
     MAIL_ROOT,
+    InvalidEmailError,
     UserAlreadyExistsError,
     create_user,
     get_guest_user,
@@ -374,6 +381,38 @@ def public_imap_host() -> str:
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/autodiscover/autodiscover.xml")
+@app.post("/Autodiscover/Autodiscover.xml")
+async def outlook_autodiscover(request: Request):
+    body = await request.body()
+    if len(body) > 64 * 1024:
+        raise HTTPException(status_code=413, detail="Autodiscover request is too large")
+    try:
+        email = normalize_email(outlook_request_email(body))
+    except (AutoconfigRequestError, InvalidEmailError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if email.rsplit("@", 1)[1] != public_imap_host().lower():
+        raise HTTPException(status_code=400, detail="Unsupported email domain")
+    return Response(
+        outlook_response_xml(
+            email, public_imap_host(), PUBLIC_IMAP_PORT, PUBLIC_SMTP_PORT
+        ),
+        media_type="application/xml",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/.well-known/autoconfig/mail/config-v1.1.xml")
+def thunderbird_autoconfig():
+    return Response(
+        thunderbird_config_xml(
+            public_imap_host(), PUBLIC_IMAP_PORT, PUBLIC_SMTP_PORT
+        ),
+        media_type="application/xml",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @app.get("/me")

@@ -195,6 +195,30 @@ PUBLIC_IMAP_SECURITY=TLS
 
 If `PUBLIC_IMAP_HOST` is unset, the backend derives the host from `PUBLIC_BASE_URL`.
 
+### Mail-client autoconfiguration
+
+The public, unauthenticated mail-client discovery endpoints are:
+
+- Outlook POX: `POST /autodiscover/autodiscover.xml`
+- Thunderbird: `GET /.well-known/autoconfig/mail/config-v1.1.xml`
+
+Both responses use `PUBLIC_IMAP_HOST`, `PUBLIC_IMAP_PORT`, and
+`PUBLIC_SMTP_PORT`, so development advertises its public 994/588 tunnel ports
+while production advertises 993/587. Outlook requests must contain a valid
+Running Notes address whose domain matches `PUBLIC_IMAP_HOST`; the response
+does not reveal whether that mailbox exists. Thunderbird receives
+`%EMAILADDRESS%` as the username placeholder.
+
+Outlook can be directed to the POX endpoint with an SRV record such as:
+
+```text
+_autodiscover._tcp.notes.handsfree.vc. 3600 IN SRV 0 0 443 notes.handsfree.vc.
+```
+
+Use the corresponding `notes-dev.handsfree.vc` owner and target for
+development. Standard RFC 6186 clients can additionally use `_imaps._tcp` and
+`_submission._tcp` SRV records with the same public ports shown by the portal.
+
 ## TLS certificates
 
 boringproxy forwards HTTPS and IMAPS as raw TCP. TLS terminates inside this stack: nginx serves HTTPS on container port 443 and Dovecot serves IMAPS on container port 993. Compose maps those listeners to loopback-only host ports `18443` and `11993` by default.
