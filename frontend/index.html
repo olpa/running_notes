@@ -4,309 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Running Notes</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f4f6f8;
-      --panel: #ffffff;
-      --line: #d6dce5;
-      --text: #17202c;
-      --muted: #596678;
-      --accent: #1f6feb;
-      --accent-dark: #174ea6;
-      --danger: #c93636;
-      --success: #137a45;
-      --shadow: 0 1px 2px rgb(16 24 40 / 8%);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    button, input { font: inherit; }
-
-    button {
-      border: 1px solid transparent;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 650;
-      min-height: 2.5rem;
-      padding: 0.55rem 0.85rem;
-    }
-
-    button:disabled {
-      cursor: default;
-      opacity: 0.55;
-    }
-
-    .app {
-      width: min(1040px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 24px 0 40px;
-    }
-
-    .topbar {
-      align-items: center;
-      display: flex;
-      gap: 16px;
-      justify-content: space-between;
-      margin-bottom: 18px;
-    }
-
-    h1 {
-      font-size: 1.35rem;
-      line-height: 1.2;
-      margin: 0;
-    }
-
-    h2 {
-      font-size: 1.05rem;
-      line-height: 1.3;
-      margin: 0 0 14px;
-    }
-
-    h3 {
-      font-size: 0.95rem;
-      margin: 18px 0 8px;
-    }
-
-    p { margin: 0; }
-
-    .muted { color: var(--muted); }
-
-    .login-panel, .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
-    }
-
-    .login-panel {
-      margin: 12vh auto 0;
-      max-width: 560px;
-      padding: 28px;
-    }
-
-    .login-intro {
-      color: var(--muted);
-      line-height: 1.55;
-      margin-top: 10px;
-    }
-
-    .login-steps {
-      line-height: 1.5;
-      margin: 16px 0 0;
-      padding-left: 1.35rem;
-    }
-
-    .login-note {
-      background: #fff8e1;
-      border-left: 4px solid #d99b00;
-      color: #5f4100;
-      font-size: 0.9rem;
-      line-height: 1.45;
-      margin-top: 18px;
-      padding: 10px 12px;
-    }
-
-    .login-actions {
-      display: grid;
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    .layout {
-      display: grid;
-      gap: 18px;
-      grid-template-columns: 220px minmax(0, 1fr);
-    }
-
-    .sidebar {
-      align-self: start;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
-      padding: 10px;
-    }
-
-    .tab {
-      align-items: center;
-      background: transparent;
-      border-color: transparent;
-      color: var(--text);
-      display: flex;
-      gap: 8px;
-      justify-content: flex-start;
-      width: 100%;
-    }
-
-    .tab[aria-selected="true"] {
-      background: #e8f1ff;
-      border-color: #bfd7ff;
-      color: #0f4c9f;
-    }
-
-    .main { min-width: 0; }
-
-    .panel {
-      display: none;
-      padding: 22px;
-    }
-
-    .panel.active { display: block; }
-
-    .primary {
-      background: var(--accent);
-      color: white;
-    }
-
-    .primary:hover:not(:disabled) { background: var(--accent-dark); }
-
-    .secondary {
-      background: #ffffff;
-      border-color: var(--line);
-      color: var(--text);
-    }
-
-    .secondary.copied {
-      background: #e8f7ef;
-      border-color: #7cc99d;
-      color: var(--success);
-    }
-
-    .danger {
-      background: #fff7f7;
-      border-color: #efb3b3;
-      color: #9f2222;
-    }
-
-    .privacy-warning {
-      background: #fff3cd;
-      border: 2px solid #d99b00;
-      border-radius: 8px;
-      color: #5f4100;
-      font-size: 1rem;
-      line-height: 1.5;
-      margin-bottom: 18px;
-      padding: 16px 18px;
-    }
-
-    .privacy-warning strong {
-      display: block;
-      font-size: 1.1rem;
-      margin-bottom: 4px;
-    }
-
-    .record-button {
-      font-size: 1.15rem;
-      min-height: 4rem;
-      width: min(100%, 320px);
-    }
-
-    .record-button.recording { background: var(--danger); }
-
-    .status {
-      border-left: 4px solid var(--line);
-      margin-top: 18px;
-      min-height: 3rem;
-      padding: 10px 12px;
-    }
-
-    .status.success { border-color: var(--success); color: var(--success); }
-    .status.error { border-color: var(--danger); color: var(--danger); }
-    .status.busy { border-color: var(--accent); color: var(--accent-dark); }
-
-    .settings-grid {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .setting-row {
-      align-items: center;
-      display: grid;
-      gap: 12px;
-      grid-template-columns: 150px minmax(0, 1fr) auto;
-      padding: 12px;
-    }
-
-    .setting-row + .setting-row { border-top: 1px solid var(--line); }
-
-    .label {
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .value {
-      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-      min-width: 0;
-      overflow-wrap: anywhere;
-    }
-
-    .instructions {
-      color: var(--muted);
-      line-height: 1.55;
-      margin: 0;
-      padding-left: 1.2rem;
-    }
-
-    .account-row {
-      align-items: center;
-      display: flex;
-      gap: 12px;
-      justify-content: space-between;
-      padding: 12px 0;
-    }
-
-    .account-row + .account-row { border-top: 1px solid var(--line); }
-
-    .password-box {
-      background: #f8fafc;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      display: none;
-      margin-top: 16px;
-      padding: 14px;
-    }
-
-    .password-box.visible { display: block; }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    .message-list { display: grid; gap: 12px; }
-    .message { border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
-    .message-header { display: flex; gap: 8px; justify-content: space-between; }
-    .message-subject { font-weight: 700; }
-    .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
-    .message audio { margin-top: 10px; max-width: 100%; width: 360px; }
-    .panel-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 14px; }
-    .site-footer { color: var(--muted); font-size: 0.9rem; margin-top: 28px; text-align: center; }
-    .site-footer a { color: var(--accent-dark); margin: 0 8px; }
-    .hidden { display: none !important; }
-
-    @media (max-width: 720px) {
-      .app { width: min(100% - 20px, 1040px); padding-top: 14px; }
-      .topbar { align-items: flex-start; flex-direction: column; gap: 8px; }
-      .layout { grid-template-columns: 1fr; }
-      .sidebar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      .tab { justify-content: center; padding-left: 6px; padding-right: 6px; }
-      .setting-row { grid-template-columns: 1fr; }
-      .setting-row button { width: 100%; }
-      .account-row { align-items: flex-start; flex-direction: column; }
-    }
-  </style>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <main class="app">
@@ -363,30 +61,13 @@
           </section>
 
           <section class="panel" id="imapPanel">
-            <h2>IMAP setup</h2>
+            <h2>Mail client setup</h2>
+            <p class="muted">Enter the email address first. If your mail client cannot detect the settings automatically, use the details below.</p>
             <div class="settings-grid" id="imapSettings"></div>
-            <h3>Outlook</h3>
-            <ol class="instructions">
-              <li>Add an IMAP account manually.</li>
-              <li>Use the email address shown as the IMAP username.</li>
-              <li>Use SSL/TLS and the port shown here.</li>
-              <li id="imapPasswordInstruction">Generate a new app password on the Account page if you do not have one.</li>
-            </ol>
-            <div id="imapStatus" class="status"></div>
-          </section>
-
-          <section class="panel" id="accountPanel">
-            <h2>Account</h2>
-            <div class="account-row">
-              <div>
-                <div class="label">Signed in as</div>
-                <div id="accountEmail" class="value"></div>
-              </div>
-            </div>
             <div class="account-row" id="imapPasswordControls">
               <div>
-                <div class="label">IMAP app password</div>
-                <p class="muted">Regenerating replaces the previous IMAP password immediately.</p>
+                <div class="label">Mail app password</div>
+                <p class="muted">Regenerating replaces the previous password immediately.</p>
               </div>
               <button class="danger" id="regeneratePassword" type="button">Regenerate</button>
             </div>
@@ -395,6 +76,36 @@
               <div id="newPassword" class="value"></div>
               <div class="actions">
                 <button class="secondary" id="copyPassword" type="button">Copy password</button>
+              </div>
+            </div>
+            <p class="settings-warning" id="smtpDisabledWarning"><strong>Outgoing delivery is disabled:</strong> SMTP authentication is available for mail-client setup, but every outgoing message is rejected and is not retained or delivered.</p>
+            <h3>Manual setup</h3>
+            <ol class="instructions">
+              <li>Add an IMAP account and use the displayed email address as the username.</li>
+              <li>Incoming mail uses port <span id="imapPortInstruction">993</span> with SSL/TLS.</li>
+              <li>Outgoing mail uses port <span id="smtpPortInstruction">587</span> with STARTTLS.</li>
+              <li id="imapPasswordInstruction">Generate a new app password here if you do not have one.</li>
+            </ol>
+            <div id="imapStatus" class="status"></div>
+            <details class="advanced-help">
+              <summary>Outlook for Android troubleshooting <span class="advanced-label">Advanced</span></summary>
+              <p>Outlook may retain an incorrect automatically detected server even when the settings above are correct. If it selects the wrong server, clear Outlook's application data and configure the account again using the displayed settings.</p>
+              <ol class="instructions">
+                <li>Close Outlook.</li>
+                <li>Open Android <strong>Settings</strong> → <strong>Apps</strong> → <strong>Outlook</strong> → <strong>Storage &amp; cache</strong>.</li>
+                <li>Choose <strong>Clear storage</strong> or <strong>Clear data</strong>, then reopen Outlook and add the account again.</li>
+              </ol>
+              <p class="muted"><strong>Warning:</strong> This removes every Outlook account and all locally stored Outlook settings from the device. Mail stored on the servers is not deleted.</p>
+              <p>Related forum discussions: <a href="https://www.reddit.com/r/Outlook/comments/j9y34r/outlook_for_android_imap_accounts_broken/" target="_blank" rel="noopener noreferrer">IMAP accounts failing in Outlook for Android</a> and <a href="https://www.reddit.com/r/sysadmin/comments/1s2c1ce/outlook_keeps_autofilling_wrong_imapsmtp/" target="_blank" rel="noopener noreferrer">Outlook retaining incorrect IMAP/SMTP servers</a>.</p>
+            </details>
+          </section>
+
+          <section class="panel" id="accountPanel">
+            <h2>Account</h2>
+            <div class="account-row">
+              <div>
+                <div class="label">Signed in as</div>
+                <div id="accountEmail" class="value"></div>
               </div>
             </div>
             <div class="actions">
@@ -427,6 +138,9 @@
     const newPassword = document.getElementById("newPassword");
     const imapPasswordControls = document.getElementById("imapPasswordControls");
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
+    const imapPortInstruction = document.getElementById("imapPortInstruction");
+    const smtpPortInstruction = document.getElementById("smtpPortInstruction");
+    const smtpDisabledWarning = document.getElementById("smtpDisabledWarning");
     const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
     const guestRetentionHours = document.getElementById("guestRetentionHours");
     const messageList = document.getElementById("messageList");
@@ -456,7 +170,7 @@
     document.getElementById("regeneratePassword").addEventListener("click", regeneratePassword);
     document.getElementById("reloadMessages").addEventListener("click", loadMessages);
     document.getElementById("copyPassword").addEventListener("click", (event) => {
-      copyText(newPassword.textContent, accountStatus, event.currentTarget);
+      copyText(newPassword.textContent, imapStatus, event.currentTarget);
     });
 
     function selectTab(name) {
@@ -491,7 +205,7 @@
       if (user.is_guest) guestRetentionHours.textContent = String(user.guest_retention_hours);
       imapPasswordControls.classList.toggle("hidden", !user.can_change_imap_password);
       imapPasswordInstruction.textContent = user.can_change_imap_password
-        ? "Generate a new app password on the Account page if you do not have one."
+        ? "Generate a new app password here if you do not have one."
         : "Use the guest password shown with these settings.";
       passwordBox.classList.remove("visible");
       newPassword.textContent = "";
@@ -579,34 +293,60 @@
     }
 
     function renderImapSettings(settings) {
-      const rows = [
-        ["Host", settings.host],
-        ["Port", String(settings.port)],
-        ["Security", settings.security],
-        ["Username", settings.username],
+      const emailAddress = settings.username;
+      imapPortInstruction.textContent = String(settings.port);
+      smtpPortInstruction.textContent = String(settings.smtp_port);
+      const children = [
+        createSettingRow("Email address", emailAddress),
+        createSettingRow("Username", emailAddress),
       ];
-      if (settings.password) rows.push(["Password", settings.password]);
-      imapSettings.replaceChildren(...rows.map(([label, value]) => {
-        const row = document.createElement("div");
-        row.className = "setting-row";
+      if (settings.password) children.push(createSettingRow("Password", settings.password));
+      children.push(imapPasswordControls, passwordBox);
+      children.push(
+        createSettingsSectionTitle("Incoming"),
+        createSettingRow("Server type", "IMAP"),
+        createSettingRow("Server", settings.host),
+        createSettingRow("Port", String(settings.port)),
+        createSettingRow("Connection security", "SSL/TLS"),
+        createSettingRow("Authentication method", "Normal password"),
+        smtpDisabledWarning,
+        createSettingsSectionTitle("Outgoing"),
+        createSettingRow("Server type", "SMTP"),
+        createSettingRow("Server", settings.host),
+        createSettingRow("Port", String(settings.smtp_port)),
+        createSettingRow("Connection security", "STARTTLS"),
+        createSettingRow("Authentication method", "Normal password"),
+      );
+      imapSettings.replaceChildren(...children);
+    }
 
-        const labelEl = document.createElement("div");
-        labelEl.className = "label";
-        labelEl.textContent = label;
+    function createSettingsSectionTitle(text) {
+      const title = document.createElement("h3");
+      title.className = "settings-section-title";
+      title.textContent = text;
+      return title;
+    }
 
-        const valueEl = document.createElement("div");
-        valueEl.className = "value";
-        valueEl.textContent = value;
+    function createSettingRow(label, value) {
+      const row = document.createElement("div");
+      row.className = "setting-row";
 
-        const copy = document.createElement("button");
-        copy.className = "secondary";
-        copy.type = "button";
-        copy.textContent = "Copy";
-        copy.addEventListener("click", () => copyText(value, imapStatus, copy));
+      const labelEl = document.createElement("div");
+      labelEl.className = "label";
+      labelEl.textContent = label;
 
-        row.append(labelEl, valueEl, copy);
-        return row;
-      }));
+      const valueEl = document.createElement("div");
+      valueEl.className = "value";
+      valueEl.textContent = value;
+
+      const copy = document.createElement("button");
+      copy.className = "secondary";
+      copy.type = "button";
+      copy.textContent = "Copy";
+      copy.addEventListener("click", () => copyText(value, imapStatus, copy));
+
+      row.append(labelEl, valueEl, copy);
+      return row;
     }
 
     async function copyText(value, statusEl, button) {
@@ -647,7 +387,7 @@
       const confirmed = window.confirm("Regenerate the IMAP password? The old password will stop working immediately.");
       if (!confirmed) return;
 
-      showStatus(accountStatus, "Regenerating...", "busy");
+      showStatus(imapStatus, "Regenerating...", "busy");
       passwordBox.classList.remove("visible");
       newPassword.textContent = "";
 
@@ -659,9 +399,9 @@
           currentSettings.username = data.imap.username;
           renderImapSettings(currentSettings);
         }
-        showStatus(accountStatus, "Password regenerated. Copy it now; it will not be shown again.", "success");
+        showStatus(imapStatus, "Password regenerated. Copy it now; it will not be shown again.", "success");
       } catch (err) {
-        if (err.message !== "Not signed in") showStatus(accountStatus, `Regeneration failed: ${err.message}`, "error");
+        if (err.message !== "Not signed in") showStatus(imapStatus, `Regeneration failed: ${err.message}`, "error");
       }
     }
 

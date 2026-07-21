@@ -45,6 +45,7 @@ services:
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}"
       PUBLIC_IMAP_HOST: "${PUBLIC_IMAP_HOST:?PUBLIC_IMAP_HOST is required}"
       PUBLIC_IMAP_PORT: "${PUBLIC_IMAP_PORT:-993}"
+      PUBLIC_SMTP_PORT: "${PUBLIC_SMTP_PORT:-587}"
       PUBLIC_IMAP_SECURITY: TLS
       GUEST_USER_EMAIL: "${GUEST_USER_EMAIL:-}"
       GUEST_USER_PASSWORD: "${GUEST_USER_PASSWORD:?GUEST_USER_PASSWORD is required}"
@@ -76,6 +77,7 @@ services:
     image: dovecot/dovecot:2.4.4
     ports:
       - "${IMAPS_BIND_ADDRESS:-0.0.0.0}:${IMAPS_PORT:-993}:993"
+      - "${SMTP_BIND_ADDRESS:-0.0.0.0}:${SMTP_PORT:-587}:587"
     volumes:
       - ./dovecot/config:/etc/dovecot/conf.d:ro
       - ${TLS_CERTIFICATE_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/fullchain.pem}:/etc/dovecot/tls/fullchain.pem:ro
@@ -84,6 +86,9 @@ services:
       - ${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/state:/state:ro
     environment:
       DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:?DOVEADM_PASSWORD is required}"
+    depends_on:
+      smtp-discard:
+        condition: service_healthy
     networks:
       - frontend
       - backend
@@ -91,6 +96,23 @@ services:
     mem_limit: 256m
     cpus: 0.5
     pids_limit: 128
+    logging: *default-logging
+    restart: unless-stopped
+
+  smtp-discard:
+    build: ./smtp_discard
+    image: running-notes-smtp-discard:${IMAGE_TAG:-0.1.0}
+    networks:
+      - backend
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_reservation: 8m
+    mem_limit: 32m
+    cpus: 0.25
+    pids_limit: 32
     logging: *default-logging
     restart: unless-stopped
 

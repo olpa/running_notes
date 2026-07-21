@@ -18,6 +18,12 @@ from authlib.integrations.base_client.errors import OAuthError
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
+from autoconfig import (
+    AutoconfigRequestError,
+    outlook_request_email,
+    outlook_response_xml,
+    thunderbird_config_xml,
+)
 from database import initialize_database
 from mailbox import DoveadmMailbox, MailboxError, MailReference
 from messages import extract_audio, parse_message_summary
@@ -39,13 +45,13 @@ from oauth import (
 from oauth_identities import OAuthIdentityError, get_or_create_oauth_user
 from users import (
     MAIL_ROOT,
+    InvalidEmailError,
     UserAlreadyExistsError,
     create_user,
-    get_user_by_email,
+    get_guest_user,
     get_user_by_id,
     mark_user_as_guest,
     normalize_email,
-    rename_user_email,
     reset_imap_password,
 )
 
@@ -69,8 +75,8 @@ MAIL_FROM = "voiceinbox@voiceinbox.local"
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
+PUBLIC_SMTP_PORT = int(os.environ.get("PUBLIC_SMTP_PORT", "587"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
-DEFAULT_GUEST_USER_EMAIL = "public@handsfree.vc"
 GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "").strip()
     or "public@" + (PUBLIC_IMAP_HOST or urlparse(PUBLIC_BASE_URL).hostname or "localhost")
@@ -128,21 +134,8 @@ async def shutdown():
 
 
 def ensure_guest_user() -> None:
-    guest = get_user_by_email(GUEST_USER_EMAIL)
+    guest = get_guest_user()
     if guest is not None:
-        mark_user_as_guest(guest["id"])
-        return
-
-    legacy_guest = get_user_by_email(DEFAULT_GUEST_USER_EMAIL)
-    if legacy_guest is not None and GUEST_USER_EMAIL != DEFAULT_GUEST_USER_EMAIL:
-        guest = rename_user_email(legacy_guest["id"], GUEST_USER_EMAIL)
-        mark_user_as_guest(guest["id"])
-        logger.info(
-            "Guest user renamed user_id=%s old_email=%s email=%s",
-            legacy_guest["id"],
-            DEFAULT_GUEST_USER_EMAIL,
-            GUEST_USER_EMAIL,
-        )
         return
 
     if not GUEST_USER_PASSWORD:
@@ -152,9 +145,9 @@ def ensure_guest_user() -> None:
         user = create_user(GUEST_USER_EMAIL, imap_password=GUEST_USER_PASSWORD)
     except UserAlreadyExistsError:
         # Another backend startup may have created the fixed account first.
-        guest = get_user_by_email(GUEST_USER_EMAIL)
-        if guest is not None:
-            mark_user_as_guest(guest["id"])
+        guest = get_guest_user()
+        if guest is None:
+            raise
         return
     mark_user_as_guest(user["id"])
     logger.info(
@@ -169,7 +162,7 @@ def can_change_imap_password(user: dict) -> bool:
 
 
 def is_guest_user(user: dict) -> bool:
-    return user["email"] == GUEST_USER_EMAIL
+    return bool(user["is_guest"])
 
 
 def require_writable_profile(user: dict) -> None:
@@ -309,7 +302,7 @@ def enforce_user_quota(user: dict, upload_bytes: int, created_at: datetime) -> N
 
 
 def cleanup_expired_guest_recordings(now: datetime | None = None) -> None:
-    guest = get_user_by_email(GUEST_USER_EMAIL)
+    guest = get_guest_user()
     if guest is None:
         return
 
@@ -390,6 +383,38 @@ def health():
     return {"status": "ok"}
 
 
+@app.post("/autodiscover/autodiscover.xml")
+@app.post("/Autodiscover/Autodiscover.xml")
+async def outlook_autodiscover(request: Request):
+    body = await request.body()
+    if len(body) > 64 * 1024:
+        raise HTTPException(status_code=413, detail="Autodiscover request is too large")
+    try:
+        email = normalize_email(outlook_request_email(body))
+    except (AutoconfigRequestError, InvalidEmailError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if email.rsplit("@", 1)[1] != public_imap_host().lower():
+        raise HTTPException(status_code=400, detail="Unsupported email domain")
+    return Response(
+        outlook_response_xml(
+            email, public_imap_host(), PUBLIC_IMAP_PORT, PUBLIC_SMTP_PORT
+        ),
+        media_type="application/xml",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/.well-known/autoconfig/mail/config-v1.1.xml")
+def thunderbird_autoconfig():
+    return Response(
+        thunderbird_config_xml(
+            public_imap_host(), PUBLIC_IMAP_PORT, PUBLIC_SMTP_PORT
+        ),
+        media_type="application/xml",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
 @app.get("/me")
 def me(request: Request):
     user = current_active_user(request)
@@ -418,6 +443,7 @@ def imap_settings(request: Request):
     settings = {
         "host": public_imap_host(),
         "port": PUBLIC_IMAP_PORT,
+        "smtp_port": PUBLIC_SMTP_PORT,
         "security": PUBLIC_IMAP_SECURITY,
         "username": user["imap_username"],
     }
@@ -434,7 +460,7 @@ def regenerate_imap_password(request: Request):
             status_code=403,
             detail="Guest IMAP password can only be changed by an administrator",
         )
-    reset = reset_imap_password(user["email"])
+    reset = reset_imap_password(user["imap_username"])
     logger.info(
         "IMAP password regenerated for user_id=%s email=%s imap_username=%s",
         reset["id"],
@@ -477,7 +503,11 @@ async def oauth_callback(provider: str, request: Request):
             provider, token["userinfo"]
         )
         user = get_or_create_oauth_user(
-            provider, provider_subject, email, email_verified
+            provider,
+            provider_subject,
+            email,
+            email_verified,
+            public_imap_host(),
         )
     except UnknownOAuthProviderError:
         logger.warning("OAuth callback rejected for unknown provider=%s", provider)
@@ -528,7 +558,7 @@ def logout(request: Request):
 
 @app.post("/auth/guest", status_code=204)
 def guest_login(request: Request):
-    user = get_user_by_email(GUEST_USER_EMAIL)
+    user = get_guest_user()
     if user is None or user["status"] != "active":
         raise HTTPException(status_code=503, detail="Guest account is unavailable")
 

@@ -20,7 +20,7 @@ def initialize_database() -> None:
             """
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
-                email TEXT NOT NULL UNIQUE,
+                provider_email TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'active',
 
@@ -33,7 +33,7 @@ def initialize_database() -> None:
                 user_id TEXT NOT NULL,
                 provider TEXT NOT NULL,
                 provider_subject TEXT NOT NULL,
-                email TEXT NOT NULL,
+                provider_email TEXT NOT NULL,
                 created_at TEXT NOT NULL,
 
                 PRIMARY KEY(provider, provider_subject),
@@ -41,11 +41,3 @@ def initialize_database() -> None:
             );
             """
         )
-
-        columns = {
-            row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()
-        }
-        if "is_guest" not in columns:
-            conn.execute(
-                "ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0"
-            )

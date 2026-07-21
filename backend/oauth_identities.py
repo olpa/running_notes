@@ -3,7 +3,12 @@ import sqlite3
 from datetime import datetime, timezone
 
 from database import connect
-from users import UserAlreadyExistsError, create_user, normalize_email, serialize_user
+from users import (
+    create_oauth_user,
+    delete_orphaned_user,
+    normalize_email,
+    serialize_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +22,7 @@ def get_or_create_oauth_user(
     provider_subject: str,
     email: str,
     email_verified: bool,
+    mailbox_domain: str,
 ) -> dict:
     if not email_verified:
         raise OAuthIdentityError("OAuth provider did not verify the email")
@@ -34,66 +40,55 @@ def get_or_create_oauth_user(
             )
             return existing_user
 
-        user = _find_user_by_email(conn, normalized_email)
-
-    if user is None:
-        try:
-            user = create_user(normalized_email)
-        except UserAlreadyExistsError:
-            with connect() as conn:
-                user = _find_user_by_email(conn, normalized_email)
-            if user is None:
-                raise
+    user = create_oauth_user(
+        normalized_email, provider, provider_subject, mailbox_domain
+    )
 
     _ensure_active_user(user)
 
-    with connect() as conn:
-        existing_user = _find_user_by_oauth_identity(conn, provider, provider_subject)
-        if existing_user is not None:
-            _ensure_active_user(existing_user)
-            logger.info(
-                "OAuth identity reused after race provider=%s user_id=%s email=%s",
-                provider,
-                existing_user["id"],
-                existing_user["email"],
-            )
-            return existing_user
-
-        user = _find_user_by_email(conn, normalized_email)
-        if user is None:
-            raise OAuthIdentityError("Linked user disappeared during OAuth login")
-        _ensure_active_user(user)
-
-        try:
-            _link_oauth_identity(
-                conn=conn,
-                user_id=user["id"],
-                provider=provider,
-                provider_subject=provider_subject,
-                email=normalized_email,
-            )
-        except OAuthIdentityError:
-            existing_user = _find_user_by_oauth_identity(
+    winner = None
+    try:
+        with connect() as conn:
+            winner = _find_user_by_oauth_identity(
                 conn, provider, provider_subject
             )
-            if existing_user is None:
-                raise
-            _ensure_active_user(existing_user)
-            logger.info(
-                "OAuth identity reused after link conflict provider=%s user_id=%s email=%s",
-                provider,
-                existing_user["id"],
-                existing_user["email"],
-            )
-            return existing_user
+            if winner is None:
+                try:
+                    _link_oauth_identity(
+                        conn=conn,
+                        user_id=user["id"],
+                        provider=provider,
+                        provider_subject=provider_subject,
+                        email=normalized_email,
+                    )
+                except OAuthIdentityError:
+                    winner = _find_user_by_oauth_identity(
+                        conn, provider, provider_subject
+                    )
+                    if winner is None:
+                        raise
+    except Exception:
+        delete_orphaned_user(user["id"])
+        raise
 
+    if winner is not None:
+        delete_orphaned_user(user["id"])
+        _ensure_active_user(winner)
         logger.info(
-            "OAuth identity linked provider=%s user_id=%s email=%s",
+            "OAuth identity reused after race provider=%s user_id=%s email=%s",
             provider,
-            user["id"],
-            user["email"],
+            winner["id"],
+            winner["email"],
         )
-        return user
+        return winner
+
+    logger.info(
+        "OAuth identity linked provider=%s user_id=%s email=%s",
+        provider,
+        user["id"],
+        user["email"],
+    )
+    return user
 
 
 def _ensure_active_user(user: dict) -> None:
@@ -108,28 +103,14 @@ def _find_user_by_oauth_identity(
 ) -> dict | None:
     row = conn.execute(
         """
-        SELECT users.id, users.email, users.status, users.imap_username
+        SELECT users.id, users.provider_email, users.status, users.imap_username,
+               users.is_guest
         FROM oauth_identities
         JOIN users ON users.id = oauth_identities.user_id
         WHERE oauth_identities.provider = ?
           AND oauth_identities.provider_subject = ?
         """,
         (provider, provider_subject),
-    ).fetchone()
-
-    if row is None:
-        return None
-    return serialize_user(row)
-
-
-def _find_user_by_email(conn: sqlite3.Connection, email: str) -> dict | None:
-    row = conn.execute(
-        """
-        SELECT id, email, status, imap_username
-        FROM users
-        WHERE email = ?
-        """,
-        (email,),
     ).fetchone()
 
     if row is None:
@@ -152,7 +133,7 @@ def _link_oauth_identity(
                 user_id,
                 provider,
                 provider_subject,
-                email,
+                provider_email,
                 created_at
             )
             VALUES (?, ?, ?, ?, ?)

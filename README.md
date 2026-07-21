@@ -18,14 +18,15 @@ export BORINGPROXY_TOKEN=<boringproxy-token>
 docker compose up
 ```
 
-Afterwards, create a user and point the IMAP client to `localhost:11993`. Use the user email as the IMAP username and the one-time password printed by the admin command. The default loopback-only host ports are HTTP `18080`, HTTPS `18443`, IMAP `10143`, and IMAPS `11993`; override them with `HTTP_PORT`, `HTTPS_PORT`, `IMAP_PORT`, and `IMAPS_PORT` in `.env` if needed.
+Afterwards, create a user and point the IMAP client to `localhost:11993`. Use the user email as the IMAP username and the one-time password printed by the admin command. The default loopback-only host ports are HTTP `18080`, HTTPS `18443`, IMAP `10143`, IMAPS `11993`, and SMTP submission `10587`; override them with `HTTP_PORT`, `HTTPS_PORT`, `IMAP_PORT`, `IMAPS_PORT`, and `SMTP_PORT` in `.env` if needed.
 
 ## Container configuration
 
 Compose persists shared application state in `./state`, mounted as `/state` in the backend and read-only in Dovecot. SQLite user and OAuth identity rows live in `/state/users.db`. Backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`; backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`, and Dovecot SQL userdb derives each user mailbox path from the same stable user id.
 
 For production, `docker-compose.production.yml` excludes boringproxy, publishes
-HTTPS on the loopback-only host port 18444, and publishes IMAPS on port 993.
+HTTPS on the loopback-only host port 18444, IMAPS on port 993, and SMTP
+submission with STARTTLS on port 587.
 The HTTPS listener is intended as a local boringproxy upstream and is bound on
 both `127.0.0.1` and `::1`. Set `RUNNING_NOTES_ROOT` in `.env` to the host
 directory containing `state`, `maildir`, and `certs`, then use the production
@@ -81,9 +82,35 @@ Create the initial user from the command line before exposing the deployment:
 docker compose run --rm backend python admin.py create-user user@example.com
 ```
 
-This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `1000:1000`. The IMAP username, equal to the normalized user email, and one-time pronounceable IMAP password are printed as JSON. Plaintext IMAP passwords are not stored.
+This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `1000:1000`. CLI-created users retain the normalized email as their IMAP username. The username and one-time pronounceable IMAP password are printed as JSON. Plaintext IMAP passwords are not stored.
+
+New OAuth users receive a persisted mail address such as `user-4821@notes.handsfree.vc`. The readable prefix comes from the local part of the provider-reported email. The four-digit suffix is the first 64 bits of SHA-256 over the normalized email, provider name, and provider `sub`, reduced modulo 10000. If that complete local part is already allocated, the backend probes subsequent suffixes until it finds a free one. Suffixes therefore need to be unique only within the same readable prefix.
+
+OAuth accounts are identified exclusively by `(provider, sub)`, not by email. Different provider identities that report the same email create separate Running Notes users and receive distinct mailbox aliases. The non-unique provider-reported address is stored as `users.provider_email`; the unique Running Notes address is stored as `users.imap_username`. Administrative password resets should use the IMAP username whenever a provider email belongs to multiple users.
+
+This schema assumes a clean database. There is no migration from earlier `users.email` schemas; remove the old development database before starting this version.
 
 IMAP password hashes are stored in Dovecot-compatible `{SHA512-CRYPT}` format in `users.imap_password_hash`, so SQL passdb can return the stored value directly.
+
+## SMTP submission sink
+
+Dovecot provides authenticated SMTP submission on port 587 with STARTTLS. It
+uses the same username and mail-app password as IMAP, and does not advertise a
+usable `PLAIN` or `LOGIN` authentication mechanism before TLS is active.
+
+Outgoing delivery is intentionally disabled. After authentication, Dovecot
+passes the SMTP transaction to the private `smtp-discard` service on the
+internal Compose network. The sink rejects every message at `DATA` with
+`554 5.7.1 Outgoing delivery is disabled by Running Notes`; it never accepts a
+message body for storage or delivery. Because SMTP reports the final result
+after the client has sent the body, Dovecot handles the body transiently before
+returning that rejection to the client. Neither service queues or retains the
+message.
+
+The discard service has no published host port. Development submission is
+loopback-only on port 10587 by default. Production publishes port 587 on all
+IPv4 interfaces by default. Set `SMTP_PORT` to override the development host
+port; production also supports `SMTP_BIND_ADDRESS`.
 
 Regenerate a user IMAP password with either their email address or IMAP username:
 
@@ -98,8 +125,7 @@ The reset command prints the new plaintext password once and replaces the previo
 The backend automatically creates a fixed guest user on startup if it does not
 already exist. Its email defaults to `public@<PUBLIC_IMAP_HOST>` and can be changed
 with `GUEST_USER_EMAIL`. When `PUBLIC_IMAP_HOST` is unset, the hostname from
-`PUBLIC_BASE_URL` is used. An existing legacy `public@handsfree.vc` guest is renamed
-in place so its mailbox and credentials are preserved. `GUEST_USER_PASSWORD` is required and sets the initial
+`PUBLIC_BASE_URL` is used. `GUEST_USER_PASSWORD` is required and sets the initial
 IMAP password when that account is first created. The guest is an ordinary active user, except that its
 IMAP password cannot be regenerated through the web portal or API. Set or reset
 its password with the server admin CLI:
@@ -156,17 +182,42 @@ Recording uploads require a signed web session. Audio is accepted only as WebM (
 
 ## User portal
 
-After OAuth login, the web portal provides recorder, IMAP setup, and account pages. The IMAP setup page shows only client connection settings: host, port, security mode, and the IMAP username. It never exposes server filesystem paths.
+After OAuth login, the web portal provides recorder, mail-client setup, and account pages. The setup page displays the persisted mail address as both the email address and username, plus incoming IMAP and outgoing SMTP settings. It never exposes server filesystem paths.
 
 Portal IMAP settings are returned by `GET /me/imap-settings` and are controlled with these environment variables:
 
 ```
 PUBLIC_IMAP_HOST=notes-dev.handsfree.vc
 PUBLIC_IMAP_PORT=993
+PUBLIC_SMTP_PORT=587
 PUBLIC_IMAP_SECURITY=TLS
 ```
 
 If `PUBLIC_IMAP_HOST` is unset, the backend derives the host from `PUBLIC_BASE_URL`.
+
+### Mail-client autoconfiguration
+
+The public, unauthenticated mail-client discovery endpoints are:
+
+- Outlook POX: `POST /autodiscover/autodiscover.xml`
+- Thunderbird: `GET /.well-known/autoconfig/mail/config-v1.1.xml`
+
+Both responses use `PUBLIC_IMAP_HOST`, `PUBLIC_IMAP_PORT`, and
+`PUBLIC_SMTP_PORT`, so development advertises its public 994/588 tunnel ports
+while production advertises 993/587. Outlook requests must contain a valid
+Running Notes address whose domain matches `PUBLIC_IMAP_HOST`; the response
+does not reveal whether that mailbox exists. Thunderbird receives
+`%EMAILADDRESS%` as the username placeholder.
+
+Outlook can be directed to the POX endpoint with an SRV record such as:
+
+```text
+_autodiscover._tcp.notes.handsfree.vc. 3600 IN SRV 0 0 443 notes.handsfree.vc.
+```
+
+Use the corresponding `notes-dev.handsfree.vc` owner and target for
+development. Standard RFC 6186 clients can additionally use `_imaps._tcp` and
+`_submission._tcp` SRV records with the same public ports shown by the portal.
 
 ## TLS certificates
 
@@ -216,9 +267,12 @@ loopback listener on port 18444, while `notes-dev.handsfree.vc` goes to the
 development SSH reverse tunnel. Production IMAPS remains directly exposed on
 public port 993; development IMAPS uses public port 994 translated to its
 internal SSH tunnel on port 10993. Set development `PUBLIC_IMAP_PORT=994` so
-clients see the correct port.
+clients see the correct port. Production SMTP submission uses public port 587;
+development uses public port 588 translated to its internal SSH tunnel on
+12588. Set development `PUBLIC_SMTP_PORT=588`; Dovecot itself remains bound to
+the loopback-only development port 10587.
 
-Signed-in non-guest users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
+Signed-in non-guest users can regenerate their own mail app password from the mail-client setup page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 
 ## Minimal observability
 

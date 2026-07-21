@@ -4,6 +4,7 @@ import sys
 
 from database import initialize_database
 from users import (
+    AmbiguousUserError,
     InvalidEmailError,
     UserAlreadyExistsError,
     UserNotFoundError,
@@ -54,6 +55,12 @@ def main() -> int:
         except UserNotFoundError:
             print("user not found", file=sys.stderr)
             return 1
+        except AmbiguousUserError:
+            print(
+                "email belongs to multiple users; use the IMAP username",
+                file=sys.stderr,
+            )
+            return 2
 
         print(json.dumps(user, indent=2))
         return 0
