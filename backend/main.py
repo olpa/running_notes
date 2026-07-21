@@ -419,7 +419,7 @@ def regenerate_imap_password(request: Request):
             status_code=403,
             detail="Guest IMAP password can only be changed by an administrator",
         )
-    reset = reset_imap_password(user["email"])
+    reset = reset_imap_password(user["imap_username"])
     logger.info(
         "IMAP password regenerated for user_id=%s email=%s imap_username=%s",
         reset["id"],

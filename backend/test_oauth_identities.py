@@ -55,6 +55,11 @@ class OAuthIdentityTests(unittest.TestCase):
         self.assertRegex(google["imap_username"], r"^alice-\d{4}@notes\.example$")
         self.assertRegex(microsoft["imap_username"], r"^alice-\d{4}@notes\.example$")
 
+        reset = users.reset_imap_password(google["imap_username"])
+        self.assertEqual(google["id"], reset["id"])
+        self.assertEqual("alice@example.com", reset["email"])
+        self.assertEqual(google["imap_username"], reset["imap_username"])
+
     def test_alias_collision_uses_next_suffix_for_same_local_part(self):
         candidates = list(
             islice(

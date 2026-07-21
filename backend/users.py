@@ -175,7 +175,7 @@ def reset_imap_password(identifier: str) -> dict:
     logger.info(
         "IMAP password generated for existing user_id=%s email=%s imap_username=%s",
         user["id"],
-        user["email"],
+        user["provider_email"],
         user["imap_username"],
     )
     imap_password_hash = _hash_imap_password(imap_password)
@@ -189,13 +189,13 @@ def reset_imap_password(identifier: str) -> dict:
     logger.info(
         "IMAP password hash replaced for user_id=%s email=%s imap_username=%s",
         user["id"],
-        user["email"],
+        user["provider_email"],
         user["imap_username"],
     )
 
     return {
         "id": user["id"],
-        "email": user["email"],
+        "email": user["provider_email"],
         "status": user["status"],
         "imap_username": user["imap_username"],
         "imap_password": imap_password,
