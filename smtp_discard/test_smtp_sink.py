@@ -30,6 +30,8 @@ class SmtpDiscardTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(b"250-smtp-discard\r\n", await reader.readline())
         self.assertEqual(b"250-ENHANCEDSTATUSCODES\r\n", await reader.readline())
+        self.assertEqual(b"250-8BITMIME\r\n", await reader.readline())
+        self.assertEqual(b"250-SMTPUTF8\r\n", await reader.readline())
         self.assertEqual(b"250 SIZE 10485760\r\n", await reader.readline())
         self.assertTrue((await reader.readline()).startswith(b"250 "))
         self.assertTrue((await reader.readline()).startswith(b"250 "))
@@ -46,7 +48,7 @@ class SmtpDiscardTests(unittest.IsolatedAsyncioTestCase):
         writer.write(b"EHLO dovecot\r\nDATA\r\nQUIT\r\n")
         await writer.drain()
 
-        for _ in range(3):
+        for _ in range(5):
             await reader.readline()
         self.assertTrue((await reader.readline()).startswith(b"503 "))
         self.assertTrue((await reader.readline()).startswith(b"221 "))

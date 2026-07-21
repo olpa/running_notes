@@ -20,9 +20,18 @@ Internet :993
   -> externally bound SSH reverse tunnel :10993
   -> boringproxy-client
   -> dovecot:993
+
+SMTP submission:
+Internet :588
+  -> firewall REDIRECT to :12588
+  -> externally bound SSH reverse tunnel :12588
+  -> boringproxy-client
+  -> dovecot:587
 ```
 
-TLS is never terminated by boringproxy. Both tunnels use `tls_termination: "passthrough"`; nginx and Dovecot own the certificates and terminate TLS.
+TLS is never terminated by boringproxy. All three tunnels use
+`tls_termination: "passthrough"`; nginx and Dovecot own the certificates and
+terminate TLS.
 
 When production and development share this host, boringproxy listens on public
 HTTPS port 443 for both hostnames. The development hostname uses its normal SSH
@@ -30,7 +39,9 @@ reverse tunnel, while `notes.handsfree.vc` is a direct-proxy record whose
 selected `tunnel_port` is the production nginx loopback listener, 18444. Do not
 run a boringproxy client for that production record. IMAPS is not routed by SNI:
 production uses public 993 directly and development uses public 994 translated
-to its internal SSH tunnel on 10993.
+to its internal SSH tunnel on 10993. Production SMTP submission uses public
+587 directly and development uses public 588 translated to its internal SSH
+tunnel on 12588.
 
 The installed server binary was boringproxy v0.10.0.
 
@@ -110,12 +121,27 @@ The important non-secret fields are:
       "tls_termination": "passthrough",
       "owner": "notes-dev",
       "client_name": "notes-dev"
+    },
+    "notes-dev.handsfree.vc.12588": {
+      "domain": "notes-dev.handsfree.vc.12588",
+      "server_address": "boringp.uucode.com",
+      "server_port": 22,
+      "username": "olpa",
+      "tunnel_port": 12588,
+      "client_address": "dovecot",
+      "client_port": 587,
+      "allow_external_tcp": true,
+      "tls_termination": "passthrough",
+      "owner": "notes-dev",
+      "client_name": "notes-dev"
     }
   }
 }
 ```
 
-The map keys must be unique. HTTPS uses the plain hostname; `.10993` distinguishes the IMAPS record only. The actual IMAPS hostname is still the value of `domain`, `notes-dev.handsfree.vc`.
+The map keys must be unique. HTTPS uses the plain hostname; `.10993` and
+`.12588` distinguish the raw mail tunnel records. These suffixes are tunnel
+identifiers, not hostnames entered in a mail client.
 
 `allow_external_tcp` controls the SSH reverse-forward bind address:
 
@@ -156,6 +182,7 @@ The relevant generated `authorized_keys` restrictions are conceptually:
 ```text
 permitlisten="127.0.0.1:<HTTPS_TUNNEL_PORT>" ... boringproxy-notes-dev.handsfree.vc-<HTTPS_TUNNEL_PORT>
 permitlisten="0.0.0.0:10993" ... boringproxy-notes-dev.handsfree.vc-10993
+permitlisten="0.0.0.0:12588" ... boringproxy-notes-dev.handsfree.vc.12588-12588
 ```
 
 Keep the complete generated lines, including their public keys and restrictive command/options. Do not copy only the snippets above. In the current installation `<HTTPS_TUNNEL_PORT>` is `46811`, but it must match the database rather than this historical value.
@@ -180,7 +207,7 @@ They must agree. The SSH server journal gives a more precise error than the clie
 sudo journalctl --since '-10 minutes' | grep -Ei 'sshd|remote forward|cannot listen|denied|permission denied'
 ```
 
-## Why public IMAPS uses 10993 internally
+## Why public mail ports use unprivileged tunnel ports
 
 > **Production and development on one host:** reserve public port 993 for the
 > production Dovecot service and use public port 994 for the development
@@ -189,6 +216,11 @@ sudo journalctl --since '-10 minutes' | grep -Ei 'sshd|remote forward|cannot lis
 > 10993. The development app must advertise `PUBLIC_IMAP_PORT=994`.
 
 An SSH remote-forward listener is created by an `sshd` child running as the authenticated user (`olpa`). It cannot bind privileged port 993. The capability on the boringproxy binary applies only to boringproxy, not to that `sshd` child.
+
+SMTP development uses the same pattern even though public port 588 is already
+unprivileged: keeping the public listener on the tunnel host means the
+application-side Docker/Dovecot listener can remain loopback-only. Public 588
+is translated to SSH tunnel port 12588.
 
 Do not solve this by:
 
@@ -209,6 +241,8 @@ The setup supports IPv4 and IPv6. Add this block before the `*filter` section in
 :OUTPUT ACCEPT [0:0]
 -A PREROUTING -p tcp --dport 993 -j REDIRECT --to-ports 10993
 -A OUTPUT -p tcp -d 195.201.133.151 --dport 993 -j REDIRECT --to-ports 10993
+-A PREROUTING -p tcp --dport 588 -j REDIRECT --to-ports 12588
+-A OUTPUT -p tcp -d 195.201.133.151 --dport 588 -j REDIRECT --to-ports 12588
 COMMIT
 ```
 
@@ -225,6 +259,8 @@ Immediately after the loopback INPUT acceptance in the same file, add:
 # Accept only connections translated from public IMAPS 993; reject direct external 10993
 -A ufw-before-input -p tcp --dport 10993 -m conntrack --ctorigdstport 993 --ctdir ORIGINAL -j ACCEPT
 -A ufw-before-input -p tcp --dport 10993 -j DROP
+-A ufw-before-input -p tcp --dport 12588 -m conntrack --ctorigdstport 588 --ctdir ORIGINAL -j ACCEPT
+-A ufw-before-input -p tcp --dport 12588 -j DROP
 ```
 
 Add the equivalent NAT block before `*filter` in `/etc/ufw/before6.rules`, using
@@ -234,9 +270,13 @@ loopback INPUT rule:
 ```text
 -A ufw6-before-input -p tcp --dport 10993 -m conntrack --ctorigdstport 993 --ctdir ORIGINAL -j ACCEPT
 -A ufw6-before-input -p tcp --dport 10993 -j DROP
+-A ufw6-before-input -p tcp --dport 12588 -m conntrack --ctorigdstport 588 --ctdir ORIGINAL -j ACCEPT
+-A ufw6-before-input -p tcp --dport 12588 -j DROP
 ```
 
-The DROP rules prevent clients from bypassing port 993 and connecting publicly to 10993. Loopback access remains allowed because the normal loopback ACCEPT precedes them.
+The DROP rules prevent clients from bypassing the translated public ports and
+connecting directly to 10993 or 12588. Loopback access remains allowed because
+the normal loopback ACCEPT precedes them.
 
 Back up the UFW files before editing, then validate/reload:
 
@@ -250,15 +290,16 @@ sudo ufw reload
 Verify live rules:
 
 ```bash
-sudo iptables -t nat -S PREROUTING | grep 10993
-sudo iptables -t nat -S OUTPUT | grep 10993
-sudo iptables -S ufw-before-input | grep 10993
-sudo ip6tables -t nat -S PREROUTING | grep 10993
-sudo ip6tables -t nat -S OUTPUT | grep 10993
-sudo ip6tables -S ufw6-before-input | grep 10993
+sudo iptables -t nat -S PREROUTING | grep -E '10993|12588'
+sudo iptables -t nat -S OUTPUT | grep -E '10993|12588'
+sudo iptables -S ufw-before-input | grep -E '10993|12588'
+sudo ip6tables -t nat -S PREROUTING | grep -E '10993|12588'
+sudo ip6tables -t nat -S OUTPUT | grep -E '10993|12588'
+sudo ip6tables -S ufw6-before-input | grep -E '10993|12588'
 ```
 
-The host also needs its normal UFW allowances for SSH, HTTP, and HTTPS. Public 10993 must not be generally allowed.
+The host also needs its normal UFW allowances for SSH, HTTP, and HTTPS. Public
+10993 and 12588 must not be generally allowed.
 
 ## Safe migration/restart order
 
@@ -286,14 +327,15 @@ Read the dynamically assigned HTTPS tunnel port, then inspect the server listene
 
 ```bash
 HTTPS_TUNNEL_PORT=$(jq -r '.tunnels["notes-dev.handsfree.vc"].tunnel_port' boringproxy_db.json)
-sudo ss -lntp | grep -E ":(80|443|10993|${HTTPS_TUNNEL_PORT})\\b"
+sudo ss -lntp | grep -E ":(80|443|10993|12588|${HTTPS_TUNNEL_PORT})\\b"
 ```
 
 Expected while the client is connected:
 
 - boringproxy owns public 80/443.
-- an `sshd` child owns 10993.
-- no process needs to listen directly on 993 because NAT acts before INPUT.
+- `sshd` children own 10993 and 12588.
+- no process needs to listen directly on 993/994 or 588 because NAT acts before
+  INPUT.
 
 HTTPS passthrough:
 
@@ -307,6 +349,7 @@ from the boringproxy host when the matching `OUTPUT` redirect is installed:
 
 ```bash
 openssl s_client -connect notes-dev.handsfree.vc:993 -servername notes-dev.handsfree.vc
+openssl s_client -starttls smtp -connect notes-dev.handsfree.vc:588 -servername notes-dev.handsfree.vc
 ```
 
 The certificate shown by these commands should be the application-side nginx/Dovecot certificate, not a boringproxy-generated certificate.

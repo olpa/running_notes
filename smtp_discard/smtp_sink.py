@@ -29,7 +29,7 @@ async def handle_client(
     greeted = False
     mail_from = False
     recipient_count = 0
-    logger.info("connection opened peer=%s", peer)
+    logger.debug("connection opened peer=%s", peer)
 
     try:
         await send_reply(writer, "220 smtp-discard ESMTP Running Notes")
@@ -60,6 +60,8 @@ async def handle_client(
                     writer.write(
                         b"250-smtp-discard\r\n"
                         b"250-ENHANCEDSTATUSCODES\r\n"
+                        b"250-8BITMIME\r\n"
+                        b"250-SMTPUTF8\r\n"
                         b"250 SIZE 10485760\r\n"
                     )
                     await writer.drain()
@@ -113,7 +115,7 @@ async def handle_client(
             await writer.wait_closed()
         except ConnectionError:
             pass
-        logger.info("connection closed peer=%s", peer)
+        logger.debug("connection closed peer=%s", peer)
 
 
 async def main() -> None:

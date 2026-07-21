@@ -68,6 +68,7 @@ MAIL_FROM = "voiceinbox@voiceinbox.local"
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
+PUBLIC_SMTP_PORT = int(os.environ.get("PUBLIC_SMTP_PORT", "587"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
 GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "").strip()
@@ -403,6 +404,7 @@ def imap_settings(request: Request):
     settings = {
         "host": public_imap_host(),
         "port": PUBLIC_IMAP_PORT,
+        "smtp_port": PUBLIC_SMTP_PORT,
         "security": PUBLIC_IMAP_SECURITY,
         "username": user["imap_username"],
     }

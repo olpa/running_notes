@@ -385,7 +385,7 @@
             <ol class="instructions">
               <li>Add an IMAP account and use the displayed email address as the username.</li>
               <li>Incoming mail uses port <span id="imapPortInstruction">993</span> with SSL/TLS.</li>
-              <li>Outgoing mail uses port 587 with STARTTLS.</li>
+              <li>Outgoing mail uses port <span id="smtpPortInstruction">587</span> with STARTTLS.</li>
               <li id="imapPasswordInstruction">Generate a new app password here if you do not have one.</li>
             </ol>
             <div id="imapStatus" class="status"></div>
@@ -430,6 +430,7 @@
     const imapPasswordControls = document.getElementById("imapPasswordControls");
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
     const imapPortInstruction = document.getElementById("imapPortInstruction");
+    const smtpPortInstruction = document.getElementById("smtpPortInstruction");
     const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
     const guestRetentionHours = document.getElementById("guestRetentionHours");
     const messageList = document.getElementById("messageList");
@@ -584,6 +585,7 @@
     function renderImapSettings(settings) {
       const emailAddress = settings.username;
       imapPortInstruction.textContent = String(settings.port);
+      smtpPortInstruction.textContent = String(settings.smtp_port);
       const rows = [
         ["Email address", emailAddress],
         ["Username", emailAddress],
@@ -592,7 +594,7 @@
         ["Incoming connection security", "SSL/TLS"],
         ["Incoming authentication method", "Normal password"],
         ["Outgoing server (SMTP)", settings.host],
-        ["Outgoing port", "587"],
+        ["Outgoing port", String(settings.smtp_port)],
         ["Outgoing connection security", "STARTTLS"],
         ["Outgoing authentication method", "Normal password"],
       ];

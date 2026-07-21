@@ -109,8 +109,8 @@ message.
 
 The discard service has no published host port. Development submission is
 loopback-only on port 10587 by default. Production publishes port 587 on all
-IPv4 interfaces by default. Set `SMTP_BIND_ADDRESS` and `SMTP_PORT` to override
-those bindings.
+IPv4 interfaces by default. Set `SMTP_PORT` to override the development host
+port; production also supports `SMTP_BIND_ADDRESS`.
 
 Regenerate a user IMAP password with either their email address or IMAP username:
 
@@ -189,6 +189,7 @@ Portal IMAP settings are returned by `GET /me/imap-settings` and are controlled 
 ```
 PUBLIC_IMAP_HOST=notes-dev.handsfree.vc
 PUBLIC_IMAP_PORT=993
+PUBLIC_SMTP_PORT=587
 PUBLIC_IMAP_SECURITY=TLS
 ```
 
@@ -242,7 +243,10 @@ loopback listener on port 18444, while `notes-dev.handsfree.vc` goes to the
 development SSH reverse tunnel. Production IMAPS remains directly exposed on
 public port 993; development IMAPS uses public port 994 translated to its
 internal SSH tunnel on port 10993. Set development `PUBLIC_IMAP_PORT=994` so
-clients see the correct port.
+clients see the correct port. Production SMTP submission uses public port 587;
+development uses public port 588 translated to its internal SSH tunnel on
+12588. Set development `PUBLIC_SMTP_PORT=588`; Dovecot itself remains bound to
+the loopback-only development port 10587.
 
 Signed-in non-guest users can regenerate their own mail app password from the mail-client setup page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 
