@@ -89,8 +89,30 @@
 
     .login-panel {
       margin: 12vh auto 0;
-      max-width: 440px;
+      max-width: 560px;
       padding: 28px;
+    }
+
+    .login-intro {
+      color: var(--muted);
+      line-height: 1.55;
+      margin-top: 10px;
+    }
+
+    .login-steps {
+      line-height: 1.5;
+      margin: 16px 0 0;
+      padding-left: 1.35rem;
+    }
+
+    .login-note {
+      background: #fff8e1;
+      border-left: 4px solid #d99b00;
+      color: #5f4100;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      margin-top: 18px;
+      padding: 10px 12px;
     }
 
     .login-actions {
@@ -270,6 +292,8 @@
     .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
     .message audio { margin-top: 10px; max-width: 100%; width: 360px; }
     .panel-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 14px; }
+    .site-footer { color: var(--muted); font-size: 0.9rem; margin-top: 28px; text-align: center; }
+    .site-footer a { color: var(--accent-dark); margin: 0 8px; }
     .hidden { display: none !important; }
 
     @media (max-width: 720px) {
@@ -286,13 +310,20 @@
 </head>
 <body>
   <main class="app">
-    <section id="login" class="login-panel hidden">
+    <section id="login" class="login-panel">
       <h1>Running Notes</h1>
-      <p class="muted">Sign in to record notes and manage your IMAP mailbox.</p>
+      <p class="login-intro">Running Notes is an inbox for thoughts you capture on the go. Record a voice note in your browser and it appears as an audio attachment in a dedicated mailbox, ready to review here or in an IMAP client such as Outlook, Apple Mail, or Thunderbird.</p>
+      <ol class="login-steps">
+        <li>Sign in, or try the public guest account.</li>
+        <li>Record a voice note.</li>
+        <li>Process it using familiar inbox tools.</li>
+      </ol>
+      <p class="login-intro">The current version stores recordings as they are; it does not transcribe or summarize them.</p>
+      <p class="login-note"><strong>Guest privacy:</strong> The guest mailbox and its recordings are public. Do not use it for private or sensitive information. Guest recordings expire automatically after 24 hours.</p>
       <div class="login-actions">
-        <button class="primary" id="googleLogin" type="button">Sign in with Google</button>
+        <button class="secondary" id="googleLogin" type="button">Sign in with Google</button>
         <button class="secondary" id="microsoftLogin" type="button">Sign in with Microsoft</button>
-        <button class="secondary" id="guestLogin" type="button">Try without registering</button>
+        <button class="primary" id="guestLogin" type="button">Try without registering</button>
       </div>
       <div id="loginStatus" class="status"></div>
     </section>
@@ -374,6 +405,11 @@
         </div>
       </div>
     </section>
+    <footer class="site-footer">
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Service</a>
+      <a href="https://github.com/olpa/running_notes/">GitHub</a>
+    </footer>
   </main>
 
   <script>

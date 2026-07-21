@@ -24,6 +24,14 @@ Internet :993
 
 TLS is never terminated by boringproxy. Both tunnels use `tls_termination: "passthrough"`; nginx and Dovecot own the certificates and terminate TLS.
 
+When production and development share this host, boringproxy listens on public
+HTTPS port 443 for both hostnames. The development hostname uses its normal SSH
+reverse tunnel, while `notes.handsfree.vc` is a direct-proxy record whose
+selected `tunnel_port` is the production nginx loopback listener, 18444. Do not
+run a boringproxy client for that production record. IMAPS is not routed by SNI:
+production uses public 993 directly and development uses public 994 translated
+to its internal SSH tunnel on 10993.
+
 The installed server binary was boringproxy v0.10.0.
 
 The HTTPS tunnel port is allocated by boringproxy. It is currently `46811` in this database, but that number is not part of the architecture and may differ after recreating or reinstalling the tunnel. Always read the current value from `boringproxy_db.json`.
@@ -173,6 +181,12 @@ sudo journalctl --since '-10 minutes' | grep -Ei 'sshd|remote forward|cannot lis
 ```
 
 ## Why public IMAPS uses 10993 internally
+
+> **Production and development on one host:** reserve public port 993 for the
+> production Dovecot service and use public port 994 for the development
+> boringproxy tunnel. In that layout, substitute 994 for every public-facing
+> 993 in the UFW translation rules below, but keep the internal SSH tunnel on
+> 10993. The development app must advertise `PUBLIC_IMAP_PORT=994`.
 
 An SSH remote-forward listener is created by an `sshd` child running as the authenticated user (`olpa`). It cannot bind privileged port 993. The capability on the boringproxy binary applies only to boringproxy, not to that `sshd` child.
 

@@ -1,0 +1,100 @@
+name: running-notes-production
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: running-notes-frontend:${IMAGE_TAG:-0.1.0}
+    ports:
+      - "127.0.0.1:${HTTPS_PORT:-18444}:443"
+      - "[::1]:${HTTPS_PORT:-18444}:443"
+    volumes:
+      - ${TLS_CERTIFICATE_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/fullchain.pem}:/etc/nginx/tls/fullchain.pem:ro
+      - ${TLS_PRIVATE_KEY_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/privkey.pem}:/etc/nginx/tls/privkey.pem:ro
+    depends_on:
+      - backend
+    networks:
+      - frontend
+    mem_reservation: 8m
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
+    logging: *default-logging
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    image: running-notes-be:${IMAGE_TAG:-0.1.0}
+    environment:
+      MAIL_UID: "1000"
+      MAIL_GID: "1000"
+      APP_ENV: production
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
+      SESSION_COOKIE_SECURE: "true"
+      MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-26214400}"
+      MAX_USER_NOTE_BYTES: "${MAX_USER_NOTE_BYTES:-262144000}"
+      MAX_USER_NOTES_PER_DAY: "${MAX_USER_NOTES_PER_DAY:-100}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}"
+      PUBLIC_IMAP_HOST: "${PUBLIC_IMAP_HOST:?PUBLIC_IMAP_HOST is required}"
+      PUBLIC_IMAP_PORT: "${PUBLIC_IMAP_PORT:-993}"
+      PUBLIC_IMAP_SECURITY: TLS
+      GUEST_USER_EMAIL: "${GUEST_USER_EMAIL:-}"
+      GUEST_USER_PASSWORD: "${GUEST_USER_PASSWORD:?GUEST_USER_PASSWORD is required}"
+      GUEST_QUOTA_FACTOR: "${GUEST_QUOTA_FACTOR:-10}"
+      GUEST_RETENTION_HOURS: "${GUEST_RETENTION_HOURS:-24}"
+      WEB_MESSAGE_LIMIT: "${WEB_MESSAGE_LIMIT:-100}"
+      DOVEADM_URL: http://dovecot:8080/doveadm/v1
+      DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:?DOVEADM_PASSWORD is required}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-}"
+      MICROSOFT_CLIENT_ID: "${MICROSOFT_CLIENT_ID:-}"
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET:-}"
+      MICROSOFT_REDIRECT_URI: "${MICROSOFT_REDIRECT_URI:-}"
+    volumes:
+      - ${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/state:/state
+      - ${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/maildir:/var/mail/voiceinbox
+    networks:
+      - frontend
+      - backend
+    mem_reservation: 96m
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 128
+    logging: *default-logging
+    restart: unless-stopped
+
+  dovecot:
+    image: dovecot/dovecot:2.4.4
+    ports:
+      - "${IMAPS_BIND_ADDRESS:-0.0.0.0}:${IMAPS_PORT:-993}:993"
+    volumes:
+      - ./dovecot/config:/etc/dovecot/conf.d:ro
+      - ${TLS_CERTIFICATE_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/fullchain.pem}:/etc/dovecot/tls/fullchain.pem:ro
+      - ${TLS_PRIVATE_KEY_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/privkey.pem}:/etc/dovecot/tls/privkey.pem:ro
+      - ${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/maildir:/var/mail/voiceinbox
+      - ${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/state:/state:ro
+    environment:
+      DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:?DOVEADM_PASSWORD is required}"
+    networks:
+      - frontend
+      - backend
+    mem_reservation: 32m
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    logging: *default-logging
+    restart: unless-stopped
+
+networks:
+  frontend:
+  backend:
+    internal: true
