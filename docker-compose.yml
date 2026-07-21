@@ -108,6 +108,7 @@ services:
     ports:
       - "127.0.0.1:${IMAP_PORT:-10143}:143"   # IMAP
       - "127.0.0.1:${IMAPS_PORT:-11993}:993"  # IMAPS
+      - "${SMTP_BIND_ADDRESS:-127.0.0.1}:${SMTP_PORT:-10587}:587" # SMTP submission with STARTTLS
     volumes:
       - ./dovecot/config:/etc/dovecot/conf.d
       - ${TLS_CERTIFICATE_PATH:-./certs/letsencrypt/live/notes.handsfree.vc/fullchain.pem}:/etc/dovecot/tls/fullchain.pem:ro
@@ -116,6 +117,9 @@ services:
       - ./state:/state:ro
     environment:
       DOVEADM_PASSWORD: "${DOVEADM_PASSWORD:?DOVEADM_PASSWORD is required}"
+    depends_on:
+      smtp-discard:
+        condition: service_healthy
     networks:
       - frontend
       - backend
@@ -123,6 +127,23 @@ services:
     mem_limit: 256m
     cpus: 0.5
     pids_limit: 128
+    logging: *default-logging
+    restart: unless-stopped
+
+  smtp-discard:
+    build: ./smtp_discard
+    image: running-notes-smtp-discard
+    networks:
+      - backend
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_reservation: 8m
+    mem_limit: 32m
+    cpus: 0.25
+    pids_limit: 32
     logging: *default-logging
     restart: unless-stopped
 

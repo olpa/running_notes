@@ -18,14 +18,15 @@ export BORINGPROXY_TOKEN=<boringproxy-token>
 docker compose up
 ```
 
-Afterwards, create a user and point the IMAP client to `localhost:11993`. Use the user email as the IMAP username and the one-time password printed by the admin command. The default loopback-only host ports are HTTP `18080`, HTTPS `18443`, IMAP `10143`, and IMAPS `11993`; override them with `HTTP_PORT`, `HTTPS_PORT`, `IMAP_PORT`, and `IMAPS_PORT` in `.env` if needed.
+Afterwards, create a user and point the IMAP client to `localhost:11993`. Use the user email as the IMAP username and the one-time password printed by the admin command. The default loopback-only host ports are HTTP `18080`, HTTPS `18443`, IMAP `10143`, IMAPS `11993`, and SMTP submission `10587`; override them with `HTTP_PORT`, `HTTPS_PORT`, `IMAP_PORT`, `IMAPS_PORT`, and `SMTP_PORT` in `.env` if needed.
 
 ## Container configuration
 
 Compose persists shared application state in `./state`, mounted as `/state` in the backend and read-only in Dovecot. SQLite user and OAuth identity rows live in `/state/users.db`. Backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`; backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`, and Dovecot SQL userdb derives each user mailbox path from the same stable user id.
 
 For production, `docker-compose.production.yml` excludes boringproxy, publishes
-HTTPS on the loopback-only host port 18444, and publishes IMAPS on port 993.
+HTTPS on the loopback-only host port 18444, IMAPS on port 993, and SMTP
+submission with STARTTLS on port 587.
 The HTTPS listener is intended as a local boringproxy upstream and is bound on
 both `127.0.0.1` and `::1`. Set `RUNNING_NOTES_ROOT` in `.env` to the host
 directory containing `state`, `maildir`, and `certs`, then use the production
@@ -90,6 +91,26 @@ OAuth accounts are identified exclusively by `(provider, sub)`, not by email. Di
 This schema assumes a clean database. There is no migration from earlier `users.email` schemas; remove the old development database before starting this version.
 
 IMAP password hashes are stored in Dovecot-compatible `{SHA512-CRYPT}` format in `users.imap_password_hash`, so SQL passdb can return the stored value directly.
+
+## SMTP submission sink
+
+Dovecot provides authenticated SMTP submission on port 587 with STARTTLS. It
+uses the same username and mail-app password as IMAP, and does not advertise a
+usable `PLAIN` or `LOGIN` authentication mechanism before TLS is active.
+
+Outgoing delivery is intentionally disabled. After authentication, Dovecot
+passes the SMTP transaction to the private `smtp-discard` service on the
+internal Compose network. The sink rejects every message at `DATA` with
+`554 5.7.1 Outgoing delivery is disabled by Running Notes`; it never accepts a
+message body for storage or delivery. Because SMTP reports the final result
+after the client has sent the body, Dovecot handles the body transiently before
+returning that rejection to the client. Neither service queues or retains the
+message.
+
+The discard service has no published host port. Development submission is
+loopback-only on port 10587 by default. Production publishes port 587 on all
+IPv4 interfaces by default. Set `SMTP_BIND_ADDRESS` and `SMTP_PORT` to override
+those bindings.
 
 Regenerate a user IMAP password with either their email address or IMAP username:
 
