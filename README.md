@@ -25,9 +25,11 @@ Afterwards, create a user and point the IMAP client to `localhost:11993`. Use th
 Compose persists shared application state in `./state`, mounted as `/state` in the backend and read-only in Dovecot. SQLite user and OAuth identity rows live in `/state/users.db`. Backend and Dovecot share `./maildir` at `/var/mail/voiceinbox`; backend provisions per-user Maildirs under `/var/mail/voiceinbox/users/<user-id>`, and Dovecot SQL userdb derives each user mailbox path from the same stable user id.
 
 For production, `docker-compose.production.yml` excludes boringproxy, publishes
-only HTTPS on port 443 and IMAPS on port 993. Set `RUNNING_NOTES_ROOT` in `.env`
-to the host directory containing `state`, `maildir`, and `certs`, then use the
-production start script:
+HTTPS on the loopback-only host port 18444, and publishes IMAPS on port 993.
+The HTTPS listener is intended as a local boringproxy upstream and is bound on
+both `127.0.0.1` and `::1`. Set `RUNNING_NOTES_ROOT` in `.env` to the host
+directory containing `state`, `maildir`, and `certs`, then use the production
+start script:
 
 ```bash
 RUNNING_NOTES_ROOT=/path/to/running-notes-data
@@ -203,7 +205,13 @@ openssl s_client \
   -verify_return_error </dev/null
 ```
 
-Once boringproxy forwards public ports 443 and 993, run the checks against the public hostname.
+On a shared production/development host, boringproxy owns public HTTPS port 443
+and routes by TLS SNI. `notes.handsfree.vc` goes directly to the production
+loopback listener on port 18444, while `notes-dev.handsfree.vc` goes to the
+development SSH reverse tunnel. Production IMAPS remains directly exposed on
+public port 993; development IMAPS uses public port 994 translated to its
+internal SSH tunnel on port 10993. Set development `PUBLIC_IMAP_PORT=994` so
+clients see the correct port.
 
 Signed-in non-guest users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 

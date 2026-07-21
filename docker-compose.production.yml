@@ -13,7 +13,8 @@ services:
       dockerfile: frontend/Dockerfile
     image: running-notes-frontend:0.1.0
     ports:
-      - "${HTTPS_BIND_ADDRESS:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+      - "127.0.0.1:${HTTPS_PORT:-18444}:443"
+      - "[::1]:${HTTPS_PORT:-18444}:443"
     volumes:
       - ${TLS_CERTIFICATE_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/fullchain.pem}:/etc/nginx/tls/fullchain.pem:ro
       - ${TLS_PRIVATE_KEY_PATH:-${RUNNING_NOTES_ROOT:?RUNNING_NOTES_ROOT is required}/certs/letsencrypt/live/notes.handsfree.vc/privkey.pem}:/etc/nginx/tls/privkey.pem:ro
