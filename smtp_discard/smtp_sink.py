@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import signal
 
 
 HOST = os.environ.get("SMTP_SINK_HOST", "0.0.0.0")
@@ -119,11 +120,29 @@ async def handle_client(
 
 
 async def main() -> None:
+    shutdown_requested = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def request_shutdown(signal_name: str) -> None:
+        logger.info("shutdown requested signal=%s", signal_name)
+        shutdown_requested.set()
+
+    handled_signals = (signal.SIGTERM, signal.SIGINT)
+    for handled_signal in handled_signals:
+        loop.add_signal_handler(
+            handled_signal, request_shutdown, handled_signal.name
+        )
+
     server = await asyncio.start_server(handle_client, HOST, PORT)
     addresses = ", ".join(str(sock.getsockname()) for sock in server.sockets or [])
     logger.info("SMTP discard sink listening on %s", addresses)
-    async with server:
-        await server.serve_forever()
+    try:
+        async with server:
+            await shutdown_requested.wait()
+    finally:
+        for handled_signal in handled_signals:
+            loop.remove_signal_handler(handled_signal)
+        logger.info("SMTP discard sink stopped")
 
 
 if __name__ == "__main__":

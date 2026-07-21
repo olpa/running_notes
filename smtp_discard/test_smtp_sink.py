@@ -1,5 +1,11 @@
 import asyncio
+import os
+import signal
+import subprocess
+import sys
+import time
 import unittest
+from pathlib import Path
 
 from smtp_sink import REJECTION, handle_client
 
@@ -54,6 +60,39 @@ class SmtpDiscardTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await reader.readline()).startswith(b"221 "))
         writer.close()
         await writer.wait_closed()
+
+
+class SmtpDiscardShutdownTests(unittest.TestCase):
+    def test_process_exits_cleanly_on_sigterm(self):
+        environment = os.environ.copy()
+        environment["SMTP_SINK_HOST"] = "127.0.0.1"
+        environment["SMTP_SINK_PORT"] = "0"
+        process = subprocess.Popen(
+            [sys.executable, str(Path(__file__).with_name("smtp_sink.py"))],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                line = process.stdout.readline()
+                if "SMTP discard sink listening" in line:
+                    break
+            else:
+                self.fail("SMTP discard sink did not start")
+
+            process.send_signal(signal.SIGTERM)
+            self.assertEqual(0, process.wait(timeout=5))
+            output = process.stdout.read()
+            self.assertIn("shutdown requested signal=SIGTERM", output)
+            self.assertIn("SMTP discard sink stopped", output)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            process.stdout.close()
 
 
 if __name__ == "__main__":
