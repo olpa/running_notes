@@ -286,6 +286,25 @@
       padding-left: 1.2rem;
     }
 
+    .advanced-help {
+      border-top: 1px solid var(--line);
+      margin-top: 20px;
+      padding-top: 16px;
+    }
+
+    .advanced-help summary { cursor: pointer; font-weight: 700; }
+    .advanced-help p { line-height: 1.55; }
+    .advanced-label {
+      background: #eef2f7;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-left: 6px;
+      padding: 3px 7px;
+      text-transform: uppercase;
+    }
+
     .account-row {
       align-items: center;
       display: flex;
@@ -418,6 +437,17 @@
               <li id="imapPasswordInstruction">Generate a new app password here if you do not have one.</li>
             </ol>
             <div id="imapStatus" class="status"></div>
+            <details class="advanced-help">
+              <summary>Outlook for Android troubleshooting <span class="advanced-label">Advanced</span></summary>
+              <p>Outlook may retain an incorrect automatically detected server even when the settings above are correct. If it selects the wrong server, clear Outlook's application data and configure the account again using the displayed settings.</p>
+              <ol class="instructions">
+                <li>Close Outlook.</li>
+                <li>Open Android <strong>Settings</strong> → <strong>Apps</strong> → <strong>Outlook</strong> → <strong>Storage &amp; cache</strong>.</li>
+                <li>Choose <strong>Clear storage</strong> or <strong>Clear data</strong>, then reopen Outlook and add the account again.</li>
+              </ol>
+              <p class="muted"><strong>Warning:</strong> This removes every Outlook account and all locally stored Outlook settings from the device. Mail stored on the servers is not deleted.</p>
+              <p>Related forum discussions: <a href="https://www.reddit.com/r/Outlook/comments/j9y34r/outlook_for_android_imap_accounts_broken/" target="_blank" rel="noopener noreferrer">IMAP accounts failing in Outlook for Android</a> and <a href="https://www.reddit.com/r/sysadmin/comments/1s2c1ce/outlook_keeps_autofilling_wrong_imapsmtp/" target="_blank" rel="noopener noreferrer">Outlook retaining incorrect IMAP/SMTP servers</a>.</p>
+            </details>
           </section>
 
           <section class="panel" id="accountPanel">
