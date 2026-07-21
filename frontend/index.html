@@ -239,6 +239,35 @@
 
     .setting-row + .setting-row { border-top: 1px solid var(--line); }
 
+    .settings-section-title {
+      background: #f8fafc;
+      border-top: 1px solid var(--line);
+      font-size: 1rem;
+      margin: 0;
+      padding: 12px;
+    }
+
+    .settings-warning {
+      background: #fff8e1;
+      border-left: 4px solid #d99b00;
+      border-top: 1px solid var(--line);
+      color: #5f4100;
+      margin: 0;
+      padding: 12px;
+    }
+
+    .settings-grid .account-row {
+      border-top: 1px solid var(--line);
+      padding: 12px;
+    }
+
+    .settings-grid .password-box {
+      border: 0;
+      border-radius: 0;
+      border-top: 1px solid var(--line);
+      margin-top: 0;
+    }
+
     .label {
       color: var(--muted);
       font-size: 0.9rem;
@@ -365,7 +394,6 @@
           <section class="panel" id="imapPanel">
             <h2>Mail client setup</h2>
             <p class="muted">Enter the email address first. If your mail client cannot detect the settings automatically, use the details below.</p>
-            <p class="login-note"><strong>Outgoing delivery is disabled:</strong> SMTP authentication is available for mail-client setup, but every outgoing message is rejected and is not retained or delivered.</p>
             <div class="settings-grid" id="imapSettings"></div>
             <div class="account-row" id="imapPasswordControls">
               <div>
@@ -381,6 +409,7 @@
                 <button class="secondary" id="copyPassword" type="button">Copy password</button>
               </div>
             </div>
+            <p class="settings-warning" id="smtpDisabledWarning"><strong>Outgoing delivery is disabled:</strong> SMTP authentication is available for mail-client setup, but every outgoing message is rejected and is not retained or delivered.</p>
             <h3>Manual setup</h3>
             <ol class="instructions">
               <li>Add an IMAP account and use the displayed email address as the username.</li>
@@ -431,6 +460,7 @@
     const imapPasswordInstruction = document.getElementById("imapPasswordInstruction");
     const imapPortInstruction = document.getElementById("imapPortInstruction");
     const smtpPortInstruction = document.getElementById("smtpPortInstruction");
+    const smtpDisabledWarning = document.getElementById("smtpDisabledWarning");
     const guestPrivacyWarning = document.getElementById("guestPrivacyWarning");
     const guestRetentionHours = document.getElementById("guestRetentionHours");
     const messageList = document.getElementById("messageList");
@@ -586,40 +616,57 @@
       const emailAddress = settings.username;
       imapPortInstruction.textContent = String(settings.port);
       smtpPortInstruction.textContent = String(settings.smtp_port);
-      const rows = [
-        ["Email address", emailAddress],
-        ["Username", emailAddress],
-        ["Incoming server (IMAP)", settings.host],
-        ["Incoming port", String(settings.port)],
-        ["Incoming connection security", "SSL/TLS"],
-        ["Incoming authentication method", "Normal password"],
-        ["Outgoing server (SMTP)", settings.host],
-        ["Outgoing port", String(settings.smtp_port)],
-        ["Outgoing connection security", "STARTTLS"],
-        ["Outgoing authentication method", "Normal password"],
+      const children = [
+        createSettingRow("Email address", emailAddress),
+        createSettingRow("Username", emailAddress),
       ];
-      if (settings.password) rows.push(["Password", settings.password]);
-      imapSettings.replaceChildren(...rows.map(([label, value]) => {
-        const row = document.createElement("div");
-        row.className = "setting-row";
+      if (settings.password) children.push(createSettingRow("Password", settings.password));
+      children.push(imapPasswordControls, passwordBox);
+      children.push(
+        createSettingsSectionTitle("Incoming"),
+        createSettingRow("Server type", "IMAP"),
+        createSettingRow("Server", settings.host),
+        createSettingRow("Port", String(settings.port)),
+        createSettingRow("Connection security", "SSL/TLS"),
+        createSettingRow("Authentication method", "Normal password"),
+        smtpDisabledWarning,
+        createSettingsSectionTitle("Outgoing"),
+        createSettingRow("Server type", "SMTP"),
+        createSettingRow("Server", settings.host),
+        createSettingRow("Port", String(settings.smtp_port)),
+        createSettingRow("Connection security", "STARTTLS"),
+        createSettingRow("Authentication method", "Normal password"),
+      );
+      imapSettings.replaceChildren(...children);
+    }
 
-        const labelEl = document.createElement("div");
-        labelEl.className = "label";
-        labelEl.textContent = label;
+    function createSettingsSectionTitle(text) {
+      const title = document.createElement("h3");
+      title.className = "settings-section-title";
+      title.textContent = text;
+      return title;
+    }
 
-        const valueEl = document.createElement("div");
-        valueEl.className = "value";
-        valueEl.textContent = value;
+    function createSettingRow(label, value) {
+      const row = document.createElement("div");
+      row.className = "setting-row";
 
-        const copy = document.createElement("button");
-        copy.className = "secondary";
-        copy.type = "button";
-        copy.textContent = "Copy";
-        copy.addEventListener("click", () => copyText(value, imapStatus, copy));
+      const labelEl = document.createElement("div");
+      labelEl.className = "label";
+      labelEl.textContent = label;
 
-        row.append(labelEl, valueEl, copy);
-        return row;
-      }));
+      const valueEl = document.createElement("div");
+      valueEl.className = "value";
+      valueEl.textContent = value;
+
+      const copy = document.createElement("button");
+      copy.className = "secondary";
+      copy.type = "button";
+      copy.textContent = "Copy";
+      copy.addEventListener("click", () => copyText(value, imapStatus, copy));
+
+      row.append(labelEl, valueEl, copy);
+      return row;
     }
 
     async function copyText(value, statusEl, button) {
