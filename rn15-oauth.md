@@ -23,7 +23,7 @@ Allow independent users to sign in to the web app without password registration.
 
 - User rows live in `/state/users.db`.
 - `backend/database.py` initializes `users` and `oauth_identities`.
-- `backend/users.py:create_user(email)` creates the app user, provisions Maildir, sets `imap_username` to normalized email, and generates an IMAP app password.
+- `backend/users.py:create_user(email)` creates CLI-managed users. OAuth users are created from `(provider, provider_subject)` and receive a persisted mailbox alias.
 - Admin user creation remains CLI-only. OAuth callback may create users after provider identity verification; do not add public admin creation endpoints.
 - `imap_password` plaintext is returned once by user creation/reset and is not stored.
 
@@ -71,7 +71,7 @@ Provider endpoints to verify during implementation:
 6. Backend fetches provider identity/email.
 7. Backend finds existing `oauth_identities` row by `(provider, provider_subject)`.
 8. If found, load linked user.
-9. If not found, find or create user by verified email, then insert `oauth_identities`.
+9. If not found, create a distinct user from `(provider, provider_subject)`, then insert `oauth_identities`. Email equality never links identities.
 10. Backend creates app session cookie.
 11. `/me` returns the current user from the app session.
 
@@ -85,7 +85,7 @@ Provider endpoints to verify during implementation:
 
 ## Implementation Checklist
 
-- [x] Inspect current `oauth_identities` schema and decide whether it needs migration.
+- [x] Define the clean `oauth_identities` schema.
 - [x] Add backend dependencies if needed.
 - [x] Add session cookie configuration loading.
 - [x] Add OAuth provider configuration loading.
@@ -95,7 +95,7 @@ Provider endpoints to verify during implementation:
 - [x] Add OAuth login-start endpoint for Microsoft.
 - [x] Add OAuth callback endpoint for Microsoft.
 - [x] Add `oauth_identities` lookup/linking logic.
-- [x] Reuse `create_user(email)` for first-login user creation.
+- [x] Create first-login users from the stable provider and `sub` identity.
 - [x] Add `/me`.
 - [x] Update README with required OAuth env vars and local callback URLs.
 - [ ] Update `agents-project-overview.md`.
@@ -117,3 +117,4 @@ Provider endpoints to verify during implementation:
 - 2026-07-01: Switched to Authlib plus Starlette `SessionMiddleware`, removed custom session signing, and added Google/Microsoft login-start endpoints.
 - 2026-07-01: Added Google/Microsoft callback route, userinfo extraction, OAuth identity linking, first-login user creation, and session assignment.
 - 2026-07-01: Hardened auth configuration and callback behavior: minimum session secret length, secure-cookie production guard, explicit session cookie settings, session clearing on login/finalized callback, verified-email enforcement, duplicate identity race handling, and Authlib OAuth error handling.
+- 2026-07-21: Stopped linking OAuth identities by email. New identities are isolated by `(provider, sub)` and receive persisted, collision-resolved mailbox aliases. Development restarts from a clean database; no legacy migration is included.

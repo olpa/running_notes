@@ -81,7 +81,13 @@ Create the initial user from the command line before exposing the deployment:
 docker compose run --rm backend python admin.py create-user user@example.com
 ```
 
-This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `1000:1000`. The IMAP username, equal to the normalized user email, and one-time pronounceable IMAP password are printed as JSON. Plaintext IMAP passwords are not stored.
+This creates the SQLite user row and provisions a Maildir at `maildir/users/<user-id>`. Provisioned Maildirs are owned by the numeric `MAIL_UID`/`MAIL_GID` configured for the backend and Dovecot, currently `1000:1000`. CLI-created users retain the normalized email as their IMAP username. The username and one-time pronounceable IMAP password are printed as JSON. Plaintext IMAP passwords are not stored.
+
+New OAuth users receive a persisted mail address such as `user-4821@notes.handsfree.vc`. The readable prefix comes from the local part of the provider-reported email. The four-digit suffix is the first 64 bits of SHA-256 over the normalized email, provider name, and provider `sub`, reduced modulo 10000. If that complete local part is already allocated, the backend probes subsequent suffixes until it finds a free one. Suffixes therefore need to be unique only within the same readable prefix.
+
+OAuth accounts are identified exclusively by `(provider, sub)`, not by email. Different provider identities that report the same email create separate Running Notes users and receive distinct mailbox aliases. The non-unique provider-reported address is stored as `users.provider_email`; the unique Running Notes address is stored as `users.imap_username`. Administrative password resets should use the IMAP username whenever a provider email belongs to multiple users.
+
+This schema assumes a clean database. There is no migration from earlier `users.email` schemas; remove the old development database before starting this version.
 
 IMAP password hashes are stored in Dovecot-compatible `{SHA512-CRYPT}` format in `users.imap_password_hash`, so SQL passdb can return the stored value directly.
 
@@ -98,8 +104,7 @@ The reset command prints the new plaintext password once and replaces the previo
 The backend automatically creates a fixed guest user on startup if it does not
 already exist. Its email defaults to `public@<PUBLIC_IMAP_HOST>` and can be changed
 with `GUEST_USER_EMAIL`. When `PUBLIC_IMAP_HOST` is unset, the hostname from
-`PUBLIC_BASE_URL` is used. An existing legacy `public@handsfree.vc` guest is renamed
-in place so its mailbox and credentials are preserved. `GUEST_USER_PASSWORD` is required and sets the initial
+`PUBLIC_BASE_URL` is used. `GUEST_USER_PASSWORD` is required and sets the initial
 IMAP password when that account is first created. The guest is an ordinary active user, except that its
 IMAP password cannot be regenerated through the web portal or API. Set or reset
 its password with the server admin CLI:
@@ -156,7 +161,7 @@ Recording uploads require a signed web session. Audio is accepted only as WebM (
 
 ## User portal
 
-After OAuth login, the web portal provides recorder, IMAP setup, and account pages. The IMAP setup page shows only client connection settings: host, port, security mode, and the IMAP username. It never exposes server filesystem paths.
+After OAuth login, the web portal provides recorder, mail-client setup, and account pages. The setup page displays the persisted mail address as both the email address and username, plus incoming IMAP and outgoing SMTP settings. It never exposes server filesystem paths.
 
 Portal IMAP settings are returned by `GET /me/imap-settings` and are controlled with these environment variables:
 
@@ -218,7 +223,7 @@ public port 993; development IMAPS uses public port 994 translated to its
 internal SSH tunnel on port 10993. Set development `PUBLIC_IMAP_PORT=994` so
 clients see the correct port.
 
-Signed-in non-guest users can regenerate their own IMAP app password from the account page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
+Signed-in non-guest users can regenerate their own mail app password from the mail-client setup page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 
 ## Minimal observability
 

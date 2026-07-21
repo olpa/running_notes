@@ -1,9 +1,11 @@
+import hashlib
 import logging
 import os
 import re
 import shutil
 import sqlite3
 import secrets
+import unicodedata
 import uuid
 from crypt import METHOD_SHA512, crypt, mksalt
 from datetime import datetime, timezone
@@ -39,20 +41,47 @@ class UserNotFoundError(ValueError):
     pass
 
 
+class AmbiguousUserError(ValueError):
+    pass
+
+
 def serialize_user(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
-        "email": row["email"],
+        "email": row["provider_email"],
         "status": row["status"],
         "imap_username": row["imap_username"],
+        "is_guest": bool(row["is_guest"]),
     }
 
 
 def create_user(email: str, imap_password: str | None = None) -> dict:
     normalized_email = normalize_email(email)
+    if get_user_by_email(normalized_email) is not None:
+        raise UserAlreadyExistsError(normalized_email)
+    return _create_user(normalized_email, (normalized_email,), imap_password)
+
+
+def create_oauth_user(
+    email: str,
+    provider: str,
+    provider_subject: str,
+    mailbox_domain: str,
+) -> dict:
+    normalized_email = normalize_email(email)
+    usernames = _oauth_imap_usernames(
+        normalized_email, provider, provider_subject, mailbox_domain
+    )
+    return _create_user(normalized_email, usernames)
+
+
+def _create_user(
+    normalized_email: str,
+    imap_usernames,
+    imap_password: str | None = None,
+) -> dict:
     user_id = uuid.uuid4().hex
     created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    imap_username = normalized_email
     password_source = "generated"
     if imap_password is None:
         imap_password = _generate_imap_password()
@@ -60,6 +89,46 @@ def create_user(email: str, imap_password: str | None = None) -> dict:
         raise ValueError("IMAP password must not be empty")
     else:
         password_source = "configured"
+    imap_password_hash = _hash_imap_password(imap_password)
+
+    imap_username = None
+    for candidate in imap_usernames:
+        try:
+            with connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO users (
+                        id,
+                        provider_email,
+                        created_at,
+                        status,
+                        imap_username,
+                        imap_password_hash
+                    )
+                    VALUES (?, ?, ?, 'active', ?, ?)
+                    """,
+                    (
+                        user_id,
+                        normalized_email,
+                        created_at,
+                        candidate,
+                        imap_password_hash,
+                    ),
+                )
+        except sqlite3.IntegrityError:
+            with connect() as conn:
+                collision = conn.execute(
+                    "SELECT 1 FROM users WHERE imap_username = ?", (candidate,)
+                ).fetchone()
+            if collision is not None:
+                continue
+            raise
+        imap_username = candidate
+        break
+
+    if imap_username is None:
+        raise UserAlreadyExistsError("mailbox alias namespace is exhausted")
+
     logger.info(
         "IMAP password %s for new user_id=%s email=%s imap_username=%s",
         password_source,
@@ -67,32 +136,6 @@ def create_user(email: str, imap_password: str | None = None) -> dict:
         normalized_email,
         imap_username,
     )
-    imap_password_hash = _hash_imap_password(imap_password)
-
-    try:
-        with connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO users (
-                    id,
-                    email,
-                    created_at,
-                    status,
-                    imap_username,
-                    imap_password_hash
-                )
-                VALUES (?, ?, ?, 'active', ?, ?)
-                """,
-                (
-                    user_id,
-                    normalized_email,
-                    created_at,
-                    imap_username,
-                    imap_password_hash,
-                ),
-            )
-    except sqlite3.IntegrityError as exc:
-        raise UserAlreadyExistsError(normalized_email) from exc
 
     try:
         _provision_maildir(user_id)
@@ -119,6 +162,7 @@ def create_user(email: str, imap_password: str | None = None) -> dict:
         "status": "active",
         "imap_username": imap_username,
         "imap_password": imap_password,
+        "is_guest": False,
     }
 
 
@@ -162,7 +206,7 @@ def get_user_by_id(user_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT id, email, status, imap_username
+            SELECT id, provider_email, status, imap_username, is_guest
             FROM users
             WHERE id = ?
             """,
@@ -179,9 +223,9 @@ def get_user_by_email(email: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT id, email, status, imap_username
+            SELECT id, provider_email, status, imap_username, is_guest
             FROM users
-            WHERE email = ?
+            WHERE provider_email = ?
             """,
             (normalized_email,),
         ).fetchone()
@@ -191,31 +235,19 @@ def get_user_by_email(email: str) -> dict | None:
     return serialize_user(row)
 
 
-def rename_user_email(user_id: str, email: str) -> dict:
-    normalized_email = normalize_email(email)
-    try:
-        with connect() as conn:
-            cursor = conn.execute(
-                """
-                UPDATE users
-                SET email = ?, imap_username = ?
-                WHERE id = ?
-                """,
-                (normalized_email, normalized_email, user_id),
-            )
-    except sqlite3.IntegrityError as exc:
-        raise UserAlreadyExistsError(normalized_email) from exc
+def get_guest_user() -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, provider_email, status, imap_username, is_guest
+            FROM users
+            WHERE is_guest = 1
+            """
+        ).fetchone()
 
-    if cursor.rowcount != 1:
-        raise UserNotFoundError(user_id)
-
-    logger.info(
-        "User email renamed user_id=%s email=%s imap_username=%s",
-        user_id,
-        normalized_email,
-        normalized_email,
-    )
-    return get_user_by_id(user_id)
+    if row is None:
+        return None
+    return serialize_user(row)
 
 
 def mark_user_as_guest(user_id: str) -> None:
@@ -228,6 +260,23 @@ def mark_user_as_guest(user_id: str) -> None:
 
     if cursor.rowcount != 1:
         raise UserNotFoundError(user_id)
+
+
+def delete_orphaned_user(user_id: str) -> None:
+    with connect() as conn:
+        cursor = conn.execute(
+            """
+            DELETE FROM users
+            WHERE id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM oauth_identities
+                  WHERE oauth_identities.user_id = users.id
+              )
+            """,
+            (user_id,),
+        )
+    if cursor.rowcount == 1:
+        shutil.rmtree(MAIL_ROOT / user_id, ignore_errors=True)
 
 
 def normalize_email(email: str) -> str:
@@ -263,14 +312,56 @@ def _hash_imap_password(password: str) -> str:
 def _find_user(identifier: str) -> sqlite3.Row | None:
     normalized_identifier = identifier.strip().lower()
     with connect() as conn:
-        return conn.execute(
+        by_username = conn.execute(
             """
-            SELECT id, email, status, imap_username
+            SELECT id, provider_email, status, imap_username, is_guest
             FROM users
-            WHERE email = ? OR imap_username = ?
+            WHERE imap_username = ?
             """,
-            (normalized_identifier, normalized_identifier),
+            (normalized_identifier,),
         ).fetchone()
+        if by_username is not None:
+            return by_username
+
+        by_email = conn.execute(
+            """
+            SELECT id, provider_email, status, imap_username, is_guest
+            FROM users
+            WHERE provider_email = ?
+            """,
+            (normalized_identifier,),
+        ).fetchall()
+
+    if len(by_email) > 1:
+        raise AmbiguousUserError(identifier)
+    return by_email[0] if by_email else None
+
+
+def _oauth_imap_usernames(
+    email: str,
+    provider: str,
+    provider_subject: str,
+    mailbox_domain: str,
+):
+    local_part = email.rsplit("@", 1)[0]
+    normalized_local_part = unicodedata.normalize("NFKD", local_part)
+    normalized_local_part = "".join(
+        character
+        for character in normalized_local_part
+        if not unicodedata.combining(character)
+    )
+    prefix = re.sub(r"[^a-z0-9._-]+", "-", normalized_local_part.lower())
+    prefix = prefix.strip("._-")[:48] or "user"
+    domain = mailbox_domain.strip().lower()
+    if not domain or "@" in domain or any(character.isspace() for character in domain):
+        raise ValueError("Invalid mailbox domain")
+
+    seed = "\0".join((email, provider, provider_subject)).encode("utf-8")
+    digest = hashlib.sha256(seed).digest()
+    initial_suffix = int.from_bytes(digest[:8], "big") % 10_000
+    for attempt in range(10_000):
+        suffix = (initial_suffix + attempt) % 10_000
+        yield f"{prefix}-{suffix:04d}@{domain}"
 
 
 def _delete_user(user_id: str) -> None:

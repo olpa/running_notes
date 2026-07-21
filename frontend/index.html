@@ -437,7 +437,6 @@
     let mediaRecorder = null;
     let chunks = [];
     let signedIn = false;
-    let currentUser = null;
     let currentSettings = null;
 
     document.getElementById("googleLogin").addEventListener("click", () => {
@@ -486,7 +485,6 @@
 
     function showPortal(user) {
       signedIn = true;
-      currentUser = user;
       login.classList.add("hidden");
       portal.classList.remove("hidden");
       signedInEmail.textContent = user.email;
@@ -583,7 +581,7 @@
     }
 
     function renderImapSettings(settings) {
-      const emailAddress = mailClientAddress(currentUser, settings.host);
+      const emailAddress = settings.username;
       imapPortInstruction.textContent = String(settings.port);
       const rows = [
         ["Email address", emailAddress],
@@ -619,24 +617,6 @@
         row.append(labelEl, valueEl, copy);
         return row;
       }));
-    }
-
-    function mailClientAddress(user, host) {
-      const localPart = user.email.split("@", 1)[0]
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9._-]+/g, "-")
-        .replace(/^[._-]+|[._-]+$/g, "")
-        .slice(0, 48) || "user";
-      const seed = `${user.email.toLowerCase()}\u0000${user.id}`;
-      let hash = 2166136261;
-      for (const character of seed) {
-        hash ^= character.codePointAt(0);
-        hash = Math.imul(hash, 16777619);
-      }
-      const suffix = String(hash >>> 0).slice(-4).padStart(4, "0");
-      return `${localPart}-${suffix}@${host}`;
     }
 
     async function copyText(value, statusEl, button) {

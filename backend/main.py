@@ -41,11 +41,10 @@ from users import (
     MAIL_ROOT,
     UserAlreadyExistsError,
     create_user,
-    get_user_by_email,
+    get_guest_user,
     get_user_by_id,
     mark_user_as_guest,
     normalize_email,
-    rename_user_email,
     reset_imap_password,
 )
 
@@ -70,7 +69,6 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
-DEFAULT_GUEST_USER_EMAIL = "public@handsfree.vc"
 GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "").strip()
     or "public@" + (PUBLIC_IMAP_HOST or urlparse(PUBLIC_BASE_URL).hostname or "localhost")
@@ -128,21 +126,8 @@ async def shutdown():
 
 
 def ensure_guest_user() -> None:
-    guest = get_user_by_email(GUEST_USER_EMAIL)
+    guest = get_guest_user()
     if guest is not None:
-        mark_user_as_guest(guest["id"])
-        return
-
-    legacy_guest = get_user_by_email(DEFAULT_GUEST_USER_EMAIL)
-    if legacy_guest is not None and GUEST_USER_EMAIL != DEFAULT_GUEST_USER_EMAIL:
-        guest = rename_user_email(legacy_guest["id"], GUEST_USER_EMAIL)
-        mark_user_as_guest(guest["id"])
-        logger.info(
-            "Guest user renamed user_id=%s old_email=%s email=%s",
-            legacy_guest["id"],
-            DEFAULT_GUEST_USER_EMAIL,
-            GUEST_USER_EMAIL,
-        )
         return
 
     if not GUEST_USER_PASSWORD:
@@ -152,9 +137,9 @@ def ensure_guest_user() -> None:
         user = create_user(GUEST_USER_EMAIL, imap_password=GUEST_USER_PASSWORD)
     except UserAlreadyExistsError:
         # Another backend startup may have created the fixed account first.
-        guest = get_user_by_email(GUEST_USER_EMAIL)
-        if guest is not None:
-            mark_user_as_guest(guest["id"])
+        guest = get_guest_user()
+        if guest is None:
+            raise
         return
     mark_user_as_guest(user["id"])
     logger.info(
@@ -169,7 +154,7 @@ def can_change_imap_password(user: dict) -> bool:
 
 
 def is_guest_user(user: dict) -> bool:
-    return user["email"] == GUEST_USER_EMAIL
+    return bool(user["is_guest"])
 
 
 def require_writable_profile(user: dict) -> None:
@@ -309,7 +294,7 @@ def enforce_user_quota(user: dict, upload_bytes: int, created_at: datetime) -> N
 
 
 def cleanup_expired_guest_recordings(now: datetime | None = None) -> None:
-    guest = get_user_by_email(GUEST_USER_EMAIL)
+    guest = get_guest_user()
     if guest is None:
         return
 
@@ -477,7 +462,11 @@ async def oauth_callback(provider: str, request: Request):
             provider, token["userinfo"]
         )
         user = get_or_create_oauth_user(
-            provider, provider_subject, email, email_verified
+            provider,
+            provider_subject,
+            email,
+            email_verified,
+            public_imap_host(),
         )
     except UnknownOAuthProviderError:
         logger.warning("OAuth callback rejected for unknown provider=%s", provider)
@@ -528,7 +517,7 @@ def logout(request: Request):
 
 @app.post("/auth/guest", status_code=204)
 def guest_login(request: Request):
-    user = get_user_by_email(GUEST_USER_EMAIL)
+    user = get_guest_user()
     if user is None or user["status"] != "active":
         raise HTTPException(status_code=503, detail="Guest account is unavailable")
 
