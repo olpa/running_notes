@@ -1,6 +1,7 @@
 DOVECOT_IMAGE := dovecot/dovecot:2.4.4
-FRONTEND_IMAGE := running-notes-frontend:0.1.0
-BACKEND_IMAGE := running-notes-be:0.1.0
+IMAGE_TAG ?= 0.1.0
+FRONTEND_IMAGE := running-notes-frontend:$(IMAGE_TAG)
+BACKEND_IMAGE := running-notes-be:$(IMAGE_TAG)
 
 .PHONY: production-images
 production-images:

@@ -11,7 +11,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    image: running-notes-frontend:0.1.0
+    image: running-notes-frontend:${IMAGE_TAG:-0.1.0}
     ports:
       - "127.0.0.1:${HTTPS_PORT:-18444}:443"
       - "[::1]:${HTTPS_PORT:-18444}:443"
@@ -31,7 +31,7 @@ services:
 
   backend:
     build: ./backend
-    image: running-notes-be:0.1.0
+    image: running-notes-be:${IMAGE_TAG:-0.1.0}
     environment:
       MAIL_UID: "1000"
       MAIL_GID: "1000"

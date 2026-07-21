@@ -40,8 +40,13 @@ Before starting a new release, pull the pinned upstream image and build the
 explicitly tagged frontend and backend images:
 
 ```bash
-make production-images
+IMAGE_TAG=0.1.1 make production-images
+IMAGE_TAG=0.1.1 /rnotes/start-production.sh --no-build --force-recreate
 ```
+
+Use the same `IMAGE_TAG` for both commands. It defaults to `0.1.0` when omitted.
+For a persistent production selection, set `IMAGE_TAG` in `/rnotes/.env` and
+omit it from the start command.
 
 ### Production resource budget
 
