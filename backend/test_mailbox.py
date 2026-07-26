@@ -1,6 +1,11 @@
 import unittest
 from unittest.mock import Mock, patch
-from mailbox import DoveadmMailbox, MailboxError, MailReference
+from mailbox import (
+    DoveadmMailbox,
+    MailboxError,
+    MailReference,
+    references_with_requested,
+)
 
 class MailReferenceTests(unittest.TestCase):
     def test_key_round_trip(self):
@@ -8,6 +13,19 @@ class MailReferenceTests(unittest.TestCase):
         self.assertEqual(MailReference.from_key(ref.key), ref)
     def test_rejects_invalid_key(self):
         with self.assertRaises(ValueError): MailReference.from_key("bad")
+
+    def test_prepends_requested_reference_outside_latest_list(self):
+        latest = [MailReference("a" * 32, 1)]
+        requested = MailReference("b" * 32, 2)
+        references, parsed = references_with_requested(latest, requested.key)
+        self.assertEqual([requested, *latest], references)
+        self.assertEqual(requested, parsed)
+
+    def test_invalid_requested_reference_leaves_list_unchanged(self):
+        latest = [MailReference("a" * 32, 1)]
+        references, parsed = references_with_requested(latest, "not-a-key")
+        self.assertEqual(latest, references)
+        self.assertIsNone(parsed)
 
 class DoveadmMailboxTests(unittest.TestCase):
     def setUp(self): self.mailbox = DoveadmMailbox("http://dovecot/doveadm/v1", "secret")

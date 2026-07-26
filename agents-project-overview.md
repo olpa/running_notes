@@ -132,14 +132,14 @@ Ticket `#16` / `MVP2-006: Protect Recorder Uploads With Authentication` is imple
 
 Current behavior:
 
-- `POST /record` requires the signed web session and rejects anonymous uploads;
+- `POST /api/record` requires the signed web session and rejects anonymous uploads;
 - uploads accept `audio/webm` only, including browser content types with parameters such as `audio/webm;codecs=opus`;
 - each upload is read with a hard size cap, `MAX_UPLOAD_BYTES`, defaulting to 25 MiB;
 - per-user quota is enforced with `MAX_USER_NOTES` and `MAX_USER_NOTE_BYTES`, defaulting to 100 notes and 250 MiB;
 - note IDs use UTC timestamp plus random suffix, for example `note-20260705T083354Z-a1b2c3d4`;
 - note files are stored under `state/users/<user-id>/notes/<note-id>/`;
 - note metadata includes the owning `user_id`;
-- `/note/<note-id>` and `/note/<note-id>/audio` are session-scoped to the current user.
+- `/api/note/<note-id>` and `/api/note/<note-id>/audio` are session-scoped to the current user.
 
 ## Ticket #15: OAuth Login And Web Sessions
 
@@ -152,7 +152,7 @@ Current behavior:
 - login start endpoints are `/auth/login/google` and `/auth/login/microsoft`;
 - callback endpoints are `/auth/callback/google` and `/auth/callback/microsoft`;
 - successful callbacks link or create an application user, insert `oauth_identities`, and set `request.session["user_id"]`;
-- `/me` returns the current active user from the signed session;
+- `/api/me` returns the current active user from the signed session;
 - `/auth/logout` clears the session;
 - first-login user creation reuses `create_user(email)`, so users get Maildir provisioning and generated IMAP credentials;
 - Google email must be explicitly verified; Microsoft userinfo is accepted without a Google-style `email_verified` claim because Microsoft OIDC userinfo does not consistently include one;
@@ -193,8 +193,8 @@ Implemented shape:
 - the static frontend is a small authenticated portal with Record, IMAP, and Account pages;
 - anonymous users see Google and Microsoft login actions;
 - signed-in users see their email, upload status states, IMAP setup values, and logout actions;
-- `GET /me/imap-settings` returns public IMAP host, port, security mode, and the current user IMAP username;
-- `POST /me/imap-password` regenerates the signed-in user IMAP app password, stores only the new hash, and returns plaintext only in that response;
+- `GET /api/me/imap-settings` returns public IMAP host, port, security mode, and the current user IMAP username;
+- `POST /api/me/imap-password` regenerates the signed-in user IMAP app password, stores only the new hash, and returns plaintext only in that response;
 - portal IMAP values are configured through `PUBLIC_IMAP_HOST`, `PUBLIC_IMAP_PORT`, and `PUBLIC_IMAP_SECURITY`, with host fallback derived from `PUBLIC_BASE_URL`;
 - the portal exposes no server filesystem paths.
 

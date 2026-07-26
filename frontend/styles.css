@@ -140,7 +140,7 @@ p { margin: 0; }
   width: 100%;
 }
 
-.tab[aria-selected="true"] {
+.tab[aria-current="page"] {
   background: #e8f1ff;
   border-color: #bfd7ff;
   color: #0f4c9f;
@@ -149,11 +149,11 @@ p { margin: 0; }
 .main { min-width: 0; }
 
 .panel {
-  display: none;
+  display: block;
   padding: 22px;
 }
 
-.panel.active { display: block; }
+[hidden] { display: none !important; }
 
 .primary {
   background: var(--accent);
@@ -328,13 +328,21 @@ p { margin: 0; }
 
 .message-list { display: grid; gap: 12px; }
 .message { border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.message.linked-message { border-color: var(--accent); box-shadow: 0 0 0 2px rgb(31 111 235 / 15%); }
+.linked-message-marker { color: var(--accent-dark); font-size: 0.8rem; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
 .message-header { display: flex; gap: 8px; justify-content: space-between; }
 .message-subject { font-weight: 700; }
+.message-subject a { color: inherit; }
 .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
-.message audio { margin-top: 10px; max-width: 100%; width: 360px; }
+.message rn-playback { display: block; margin-top: 10px; }
+.message audio { max-width: 100%; width: 360px; }
+.playback-status { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+.playback-status.error { color: var(--danger); }
+.info-alert { background: #e8f1ff; border-left: 4px solid var(--accent); color: var(--text); margin-bottom: 14px; padding: 12px 14px; }
 .panel-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 14px; }
 .site-footer { color: var(--muted); font-size: 0.9rem; margin-top: 28px; text-align: center; }
 .site-footer a { color: var(--accent-dark); margin: 0 8px; }
+.site-footer #buildInfo { display: block; margin-top: 8px; }
 .hidden { display: none !important; }
 
 @media (max-width: 720px) {

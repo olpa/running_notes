@@ -13,7 +13,7 @@ from email.utils import format_datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Query, Request, UploadFile
 from authlib.integrations.base_client.errors import OAuthError
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
@@ -24,8 +24,14 @@ from autoconfig import (
     outlook_response_xml,
     thunderbird_config_xml,
 )
+from application_routes import safe_application_return_path
 from database import initialize_database
-from mailbox import DoveadmMailbox, MailboxError, MailReference
+from mailbox import (
+    DoveadmMailbox,
+    MailboxError,
+    MailReference,
+    references_with_requested,
+)
 from messages import extract_audio, parse_message_summary
 from oauth import (
     OAuthConfigurationError,
@@ -415,7 +421,7 @@ def thunderbird_autoconfig():
     )
 
 
-@app.get("/me")
+@app.get("/api/me")
 def me(request: Request):
     user = current_active_user(request)
     return {
@@ -430,14 +436,14 @@ def me(request: Request):
     }
 
 
-@app.patch("/me")
+@app.patch("/api/me")
 def update_profile(request: Request):
     user = current_active_user(request)
     require_writable_profile(user)
     raise HTTPException(status_code=501, detail="Profile updates are not implemented")
 
 
-@app.get("/me/imap-settings")
+@app.get("/api/me/imap-settings")
 def imap_settings(request: Request):
     user = current_active_user(request)
     settings = {
@@ -452,7 +458,7 @@ def imap_settings(request: Request):
     return {"imap": settings}
 
 
-@app.post("/me/imap-password")
+@app.post("/api/me/imap-password")
 def regenerate_imap_password(request: Request):
     user = current_active_user(request)
     if not can_change_imap_password(user):
@@ -476,7 +482,11 @@ def regenerate_imap_password(request: Request):
 
 
 @app.get("/auth/login/{provider}")
-async def oauth_login(provider: str, request: Request):
+async def oauth_login(
+    provider: str,
+    request: Request,
+    return_to: str | None = Query(default=None),
+):
     try:
         client = get_oauth_client(oauth, provider)
         redirect_uri = build_redirect_uri(provider)
@@ -491,11 +501,15 @@ async def oauth_login(provider: str, request: Request):
         "OAuth login started provider=%s redirect_uri=%s", provider, redirect_uri
     )
     request.session.clear()
+    request.session["oauth_return_to"] = safe_application_return_path(return_to)
     return await client.authorize_redirect(request, redirect_uri)
 
 
 @app.get("/auth/callback/{provider}")
 async def oauth_callback(provider: str, request: Request):
+    return_to = safe_application_return_path(
+        request.session.get("oauth_return_to")
+    )
     try:
         client = get_oauth_client(oauth, provider)
         token = await client.authorize_access_token(request)
@@ -547,7 +561,7 @@ async def oauth_callback(provider: str, request: Request):
         user["id"],
         user["email"],
     )
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=return_to, status_code=303)
 
 
 @app.post("/auth/logout", status_code=204)
@@ -569,7 +583,7 @@ def guest_login(request: Request):
     return None
 
 
-@app.post("/record", status_code=201)
+@app.post("/api/record", status_code=201)
 async def record(request: Request, file: UploadFile):
     user = current_active_user(request)
     media_type = file.content_type or ""
@@ -609,7 +623,7 @@ async def record(request: Request, file: UploadFile):
     return metadata
 
 
-@app.get("/note/{note_id}")
+@app.get("/api/note/{note_id}")
 def get_note(note_id: str, request: Request):
     user = current_active_user(request)
     meta_path = note_dir_for(user["id"], note_id) / "metadata.json"
@@ -618,7 +632,7 @@ def get_note(note_id: str, request: Request):
     return json.loads(meta_path.read_text())
 
 
-@app.get("/note/{note_id}/audio")
+@app.get("/api/note/{note_id}/audio")
 def get_audio(note_id: str, request: Request):
     user = current_active_user(request)
     audio_path = note_dir_for(user["id"], note_id) / "audio.webm"
@@ -626,11 +640,17 @@ def get_audio(note_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(audio_path, media_type="audio/webm")
 
-@app.get("/messages")
-def list_messages(request: Request):
+@app.get("/api/messages")
+def list_messages(
+    request: Request,
+    include: str | None = Query(default=None),
+):
     user = current_active_user(request)
     try:
         references = mailbox.latest_references(user["imap_username"], WEB_MESSAGE_LIMIT)
+        references, requested_reference = references_with_requested(
+            references, include
+        )
         raw_messages = mailbox.fetch_messages(user["imap_username"], references)
     except MailboxError as exc:
         logger.exception("Dovecot message listing failed user_id=%s", user["id"])
@@ -641,10 +661,20 @@ def list_messages(request: Request):
             messages.append(parse_message_summary(raw, reference.key))
         except Exception:
             logger.warning("Ignoring malformed mailbox message user_id=%s uid=%s", user["id"], reference.uid)
-    return {"messages": messages, "limit": WEB_MESSAGE_LIMIT}
+    requested_message_found = (
+        requested_reference is not None
+        and any(message["id"] == requested_reference.key for message in messages)
+        if include
+        else None
+    )
+    return {
+        "messages": messages,
+        "limit": WEB_MESSAGE_LIMIT,
+        "requested_message_found": requested_message_found,
+    }
 
 
-@app.get("/messages/{message_key}/audio/{audio_index}")
+@app.get("/api/messages/{message_key}/audio/{audio_index}")
 def message_audio(message_key: str, audio_index: int, request: Request):
     user = current_active_user(request)
     try:
