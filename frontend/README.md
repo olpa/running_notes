@@ -22,10 +22,11 @@ useful as components are added, removed, or reorganized.
   imported using Vite's `?raw` suffix.
 - Components currently use the light DOM and shared global CSS. They do not use
   Shadow DOM.
-- Tabs are coordinated inside the application shell; there is no client-side
-  URL router.
+- A small client-side router maps top-level browser paths to tabs and supports
+  direct message links. Browser routes and backend APIs use separate
+  namespaces.
 
-Avoid introducing a framework, global state library, router, or Shadow DOM
+Avoid introducing a framework, global state library, routing library, or Shadow DOM
 solely for consistency with other projects. Add one only when an application
 requirement justifies its cost.
 
@@ -37,6 +38,9 @@ store access tokens or authentication credentials in browser storage.
 Components should receive or import the shared API client instead of
 implementing their own `fetch` behavior. Common response handling, including
 session expiry, belongs in the API and application layers.
+
+JSON, upload, and media endpoints live under `/api`. Browser authentication
+flows remain under `/auth`. Do not reuse a browser route as an API path.
 
 An authenticated request returning `401` transitions the entire application to
 its anonymous state. Components should not attempt to maintain an independent
@@ -63,6 +67,10 @@ Prefer explicit, typed component interfaces:
 Changing an element's `hidden` state does not disconnect it from the document,
 so native `connectedCallback()` and `disconnectedCallback()` do not represent
 tab activation. Use the explicit activation methods for that purpose.
+
+Tab changes should navigate through `src/router.ts`, preserving browser
+history, direct links, and authentication return paths. Nginx explicitly lists
+the supported browser routes instead of applying a site-wide SPA fallback.
 
 Components that start asynchronous work must cancel it or ignore stale results
 after reset, logout, or a newer request. Components that own media streams,

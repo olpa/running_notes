@@ -28,9 +28,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/auth": "http://localhost:8000",
-      "/me": "http://localhost:8000",
-      "/messages": "http://localhost:8000",
-      "/record": "http://localhost:8000",
+      "/api": "http://localhost:8000",
     },
   },
   test: {

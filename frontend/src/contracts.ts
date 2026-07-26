@@ -25,6 +25,7 @@ export interface MessageSummary {
 export interface MessagesResponse {
   messages: MessageSummary[];
   limit: number;
+  requested_message_found: boolean | null;
 }
 
 export interface ImapSettings {
@@ -64,4 +65,12 @@ export type SessionState =
 export interface TabComponent extends HTMLElement {
   activate(): void;
   deactivate(): void;
+}
+
+export type TabName = "record" | "messages" | "imap" | "account";
+
+export interface AppRoute {
+  tab: TabName;
+  messageKey: string | null;
+  messageRequested: boolean;
 }

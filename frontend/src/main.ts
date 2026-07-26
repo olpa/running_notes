@@ -3,6 +3,7 @@ import { ApiClient, ApiError } from "./api.js";
 import { buildInfo, formatBuildInfo } from "./build-info.js";
 import type { User } from "./contracts.js";
 import { queryRequired, showStatus } from "./dom.js";
+import { parseRoute, pathForTab } from "./router.js";
 import { createSession } from "./session.js";
 import { createTabs } from "./tabs.js";
 import { AccountTab } from "./components/account-tab/account-tab.js";
@@ -41,8 +42,7 @@ const api = new ApiClient({
   component.api = api;
 });
 
-const tabs = createTabs(elements.portal);
-tabs.select("record");
+const tabs = createTabs(elements.portal, (tab) => navigate(pathForTab(tab)));
 
 session.subscribe(({ status, user }) => {
   if (status === "authenticated") showPortal(user);
@@ -50,10 +50,10 @@ session.subscribe(({ status, user }) => {
 });
 
 queryRequired<HTMLButtonElement>(document, "#googleLogin").addEventListener("click", () => {
-  window.location.href = "/auth/login/google";
+  startOauthLogin("google");
 });
 queryRequired<HTMLButtonElement>(document, "#microsoftLogin").addEventListener("click", () => {
-  window.location.href = "/auth/login/microsoft";
+  startOauthLogin("microsoft");
 });
 queryRequired<HTMLButtonElement>(document, "#guestLogin").addEventListener("click", () => {
   void loginAsGuest();
@@ -62,6 +62,12 @@ queryRequired<HTMLButtonElement>(document, "#topLogout").addEventListener("click
   void logout();
 });
 elements.portal.addEventListener("logout-requested", logout);
+elements.portal.addEventListener("navigate-requested", (event: Event) => {
+  if (event instanceof CustomEvent && typeof event.detail === "string") {
+    navigate(event.detail);
+  }
+});
+window.addEventListener("popstate", applyCurrentRoute);
 
 function showPortal(user: User): void {
   elements.login.classList.add("hidden");
@@ -75,6 +81,27 @@ function showPortal(user: User): void {
   elements.imap.setUser(user);
   elements.account.setUser(user);
   elements.imap.load();
+  applyCurrentRoute();
+}
+
+function startOauthLogin(provider: "google" | "microsoft"): void {
+  const returnTo = `${window.location.pathname}${window.location.search}`;
+  window.location.href = `/auth/login/${provider}?return_to=${encodeURIComponent(returnTo)}`;
+}
+
+function navigate(path: string): void {
+  if (window.location.pathname !== path) {
+    window.history.pushState(null, "", path);
+  }
+  applyCurrentRoute();
+}
+
+function applyCurrentRoute(): void {
+  const route = parseRoute(window.location.pathname);
+  elements.messages.setRequestedMessage(route.messageKey, route.messageRequested);
+  if (session.state.status === "authenticated") {
+    tabs.select(route.tab);
+  }
 }
 
 function showLoggedOut(message: string): void {

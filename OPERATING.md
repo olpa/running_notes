@@ -152,7 +152,7 @@ to `24`; an hourly backend task removes expired guest source recordings and the
 corresponding messages from the guest Maildir. Registered-user data is not
 subject to this retention task.
 
-The reserved profile-update endpoint is `PATCH /me`. Profile editing is not yet
+The reserved profile-update endpoint is `PATCH /api/me`. Profile editing is not yet
 implemented, so ordinary users receive `501`. The guest restriction is already
 enforced first and returns `403`, safeguarding the read-only profile contract
 when profile editing is implemented later.
@@ -177,7 +177,7 @@ Recording uploads require a signed web session. Audio is accepted only as WebM (
 
 After OAuth login, the web portal provides recorder, mail-client setup, and account pages. The setup page displays the persisted mail address as both the email address and username, plus incoming IMAP and outgoing SMTP settings. It never exposes server filesystem paths.
 
-Portal IMAP settings are returned by `GET /me/imap-settings` and are controlled with these environment variables:
+Portal IMAP settings are returned by `GET /api/me/imap-settings` and are controlled with these environment variables:
 
 ```
 PUBLIC_IMAP_HOST=notes-dev.handsfree.vc
@@ -265,7 +265,7 @@ development uses public port 588 translated to its internal SSH tunnel on
 12588. Set development `PUBLIC_SMTP_PORT=588`; Dovecot itself remains bound to
 the loopback-only development port 10587.
 
-Signed-in non-guest users can regenerate their own mail app password from the mail-client setup page. The endpoint is `POST /me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
+Signed-in non-guest users can regenerate their own mail app password from the mail-client setup page. The endpoint is `POST /api/me/imap-password`; it replaces the stored Dovecot password hash and returns the new plaintext password only in that response. The configured guest receives `403` from this endpoint and has no regeneration control in the portal.
 
 ## Minimal observability
 

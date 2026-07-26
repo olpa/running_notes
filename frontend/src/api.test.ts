@@ -53,4 +53,22 @@ describe("ApiClient", () => {
       new ApiError("Mailbox is unavailable", 503),
     );
   });
+
+  it("requests inclusion of an opaque linked-message key", async () => {
+    const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
+      Response.json({
+        messages: [],
+        limit: 100,
+        requested_message_found: false,
+      })
+    ));
+    const api = new ApiClient({ fetchImpl });
+
+    await api.getMessages("mailbox/key");
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/messages?include=mailbox%2Fkey",
+      {},
+    );
+  });
 });

@@ -78,7 +78,7 @@ export class ApiClient {
   }
 
   getSession(): Promise<SessionResponse> {
-    return this.requestJson<SessionResponse>("/me", {}, { notifyUnauthorized: false });
+    return this.requestJson<SessionResponse>("/api/me", {}, { notifyUnauthorized: false });
   }
 
   loginAsGuest(): Promise<void> {
@@ -89,23 +89,24 @@ export class ApiClient {
     return this.requestEmpty("/auth/logout", { method: "POST" });
   }
 
-  getMessages(): Promise<MessagesResponse> {
-    return this.requestJson<MessagesResponse>("/messages");
+  getMessages(include: string | null = null): Promise<MessagesResponse> {
+    const query = include ? `?include=${encodeURIComponent(include)}` : "";
+    return this.requestJson<MessagesResponse>(`/api/messages${query}`);
   }
 
   getImapSettings(): Promise<ImapSettingsResponse> {
-    return this.requestJson<ImapSettingsResponse>("/me/imap-settings");
+    return this.requestJson<ImapSettingsResponse>("/api/me/imap-settings");
   }
 
   regenerateImapPassword(): Promise<RegeneratedImapPasswordResponse> {
     return this.requestJson<RegeneratedImapPasswordResponse>(
-      "/me/imap-password",
+      "/api/me/imap-password",
       { method: "POST" },
     );
   }
 
   uploadRecording(formData: FormData): Promise<NoteMetadata> {
-    return this.requestJson<NoteMetadata>("/record", { method: "POST", body: formData });
+    return this.requestJson<NoteMetadata>("/api/record", { method: "POST", body: formData });
   }
 }
 

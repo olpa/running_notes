@@ -31,6 +31,21 @@ class MailReference:
         guid, uid = value.split(":", 1)
         return cls(guid.lower(), int(uid))
 
+
+def references_with_requested(
+    references: list[MailReference],
+    requested_key: str | None,
+) -> tuple[list[MailReference], MailReference | None]:
+    if not requested_key:
+        return references, None
+    try:
+        requested = MailReference.from_key(requested_key)
+    except ValueError:
+        return references, None
+    if requested in references:
+        return references, requested
+    return [requested, *references], requested
+
 class DoveadmMailbox:
     """Read mail through Dovecot's doveadm HTTP API, never Maildir files."""
     def __init__(self, url: str, password: str, timeout_seconds: float = 15.0):
