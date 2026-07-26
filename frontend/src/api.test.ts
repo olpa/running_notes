@@ -3,23 +3,36 @@ import { ApiClient, ApiError } from "./api.js";
 
 describe("ApiClient", () => {
   it("returns parsed JSON", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ user: { email: "runner@example.com" } }),
-    });
+    const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
+      Response.json({
+        user: {
+          email: "runner@example.com",
+          is_guest: false,
+          guest_retention_hours: null,
+          can_change_imap_password: true,
+        },
+      })
+    ));
     const api = new ApiClient({ fetchImpl });
 
     await expect(api.getSession()).resolves.toEqual({
-      user: { email: "runner@example.com" },
+      user: {
+        email: "runner@example.com",
+        is_guest: false,
+        guest_retention_hours: null,
+        can_change_imap_password: true,
+      },
     });
   });
 
   it("notifies the shell when a session expires", async () => {
     const onUnauthorized = vi.fn();
+    const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
+      new Response(null, { status: 401 })
+    ));
     const api = new ApiClient({
       onUnauthorized,
-      fetchImpl: vi.fn().mockResolvedValue({ ok: false, status: 401 }),
+      fetchImpl,
     });
 
     await expect(api.getMessages()).rejects.toEqual(
@@ -29,12 +42,11 @@ describe("ApiClient", () => {
   });
 
   it("uses a server error detail when available", async () => {
+    const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
+      Response.json({ detail: "Mailbox is unavailable" }, { status: 503 })
+    ));
     const api = new ApiClient({
-      fetchImpl: vi.fn().mockResolvedValue({
-        ok: false,
-        status: 503,
-        json: async () => ({ detail: "Mailbox is unavailable" }),
-      }),
+      fetchImpl,
     });
 
     await expect(api.getMessages()).rejects.toEqual(

@@ -19,9 +19,9 @@ describe("rn-messages-tab", () => {
       audio: [{ index: 3 }],
     }]);
 
-    expect(tab.querySelector(".message-subject").textContent).toBe("<strong>not markup</strong>");
+    expect(tab.querySelector(".message-subject")?.textContent).toBe("<strong>not markup</strong>");
     expect(tab.querySelector(".message-subject strong")).toBeNull();
-    expect(tab.querySelector("rn-playback").getAttribute("src")).toBe(
+    expect(tab.querySelector("rn-playback")?.getAttribute("src")).toBe(
       "/messages/1%2F2/audio/3",
     );
   });
@@ -40,6 +40,6 @@ describe("rn-messages-tab", () => {
 
     tab.reset();
 
-    expect(tab.querySelector(".message-list").children).toHaveLength(0);
+    expect(tab.querySelector(".message-list")?.children).toHaveLength(0);
   });
 });

@@ -1,24 +1,25 @@
 import "../styles.css";
 import { ApiClient, ApiError } from "./api.js";
-import { showStatus } from "./dom.js";
+import type { User } from "./contracts.js";
+import { queryRequired, showStatus } from "./dom.js";
 import { createSession } from "./session.js";
 import { createTabs } from "./tabs.js";
-import "./components/account-tab/account-tab.js";
-import "./components/imap-tab/imap-tab.js";
-import "./components/messages-tab/messages-tab.js";
-import "./components/record-tab/record-tab.js";
+import { AccountTab } from "./components/account-tab/account-tab.js";
+import { ImapTab } from "./components/imap-tab/imap-tab.js";
+import { MessagesTab } from "./components/messages-tab/messages-tab.js";
+import { RecordTab } from "./components/record-tab/record-tab.js";
 
 const elements = {
-  login: document.getElementById("login"),
-  portal: document.getElementById("portal"),
-  loginStatus: document.getElementById("loginStatus"),
-  signedInEmail: document.getElementById("signedInEmail"),
-  guestPrivacyWarning: document.getElementById("guestPrivacyWarning"),
-  guestRetentionHours: document.getElementById("guestRetentionHours"),
-  recorder: document.querySelector("rn-record-tab"),
-  messages: document.querySelector("rn-messages-tab"),
-  imap: document.querySelector("rn-imap-tab"),
-  account: document.querySelector("rn-account-tab"),
+  login: queryRequired<HTMLElement>(document, "#login"),
+  portal: queryRequired<HTMLElement>(document, "#portal"),
+  loginStatus: queryRequired<HTMLElement>(document, "#loginStatus"),
+  signedInEmail: queryRequired<HTMLElement>(document, "#signedInEmail"),
+  guestPrivacyWarning: queryRequired<HTMLElement>(document, "#guestPrivacyWarning"),
+  guestRetentionHours: queryRequired<HTMLElement>(document, "#guestRetentionHours"),
+  recorder: queryRequired<RecordTab>(document, "rn-record-tab"),
+  messages: queryRequired<MessagesTab>(document, "rn-messages-tab"),
+  imap: queryRequired<ImapTab>(document, "rn-imap-tab"),
+  account: queryRequired<AccountTab>(document, "rn-account-tab"),
 };
 
 const session = createSession();
@@ -44,17 +45,21 @@ session.subscribe(({ status, user }) => {
   else if (status === "anonymous") showLoggedOut(loggedOutMessage);
 });
 
-document.getElementById("googleLogin").addEventListener("click", () => {
+queryRequired<HTMLButtonElement>(document, "#googleLogin").addEventListener("click", () => {
   window.location.href = "/auth/login/google";
 });
-document.getElementById("microsoftLogin").addEventListener("click", () => {
+queryRequired<HTMLButtonElement>(document, "#microsoftLogin").addEventListener("click", () => {
   window.location.href = "/auth/login/microsoft";
 });
-document.getElementById("guestLogin").addEventListener("click", loginAsGuest);
-document.getElementById("topLogout").addEventListener("click", logout);
+queryRequired<HTMLButtonElement>(document, "#guestLogin").addEventListener("click", () => {
+  void loginAsGuest();
+});
+queryRequired<HTMLButtonElement>(document, "#topLogout").addEventListener("click", () => {
+  void logout();
+});
 elements.portal.addEventListener("logout-requested", logout);
 
-function showPortal(user) {
+function showPortal(user: User): void {
   elements.login.classList.add("hidden");
   elements.portal.classList.remove("hidden");
   elements.signedInEmail.textContent = user.email;
@@ -68,7 +73,7 @@ function showPortal(user) {
   elements.imap.load();
 }
 
-function showLoggedOut(message) {
+function showLoggedOut(message: string): void {
   elements.portal.classList.add("hidden");
   elements.login.classList.remove("hidden");
   elements.signedInEmail.textContent = "";
@@ -80,7 +85,7 @@ function showLoggedOut(message) {
   showStatus(elements.loginStatus, message);
 }
 
-async function loginAsGuest() {
+async function loginAsGuest(): Promise<void> {
   sessionRequestId += 1;
   showStatus(elements.loginStatus, "Opening public guest account...", "busy");
   try {
@@ -88,12 +93,12 @@ async function loginAsGuest() {
     await loadSession();
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return;
-    loggedOutMessage = `Guest account unavailable: ${error.message}`;
+    loggedOutMessage = `Guest account unavailable: ${error instanceof Error ? error.message : String(error)}`;
     session.clear();
   }
 }
 
-async function logout() {
+async function logout(): Promise<void> {
   sessionRequestId += 1;
   try {
     await api.logout();
@@ -105,7 +110,7 @@ async function logout() {
   }
 }
 
-async function loadSession() {
+async function loadSession(): Promise<void> {
   const requestId = ++sessionRequestId;
   try {
     const data = await api.getSession();
@@ -117,10 +122,10 @@ async function loadSession() {
     if (error instanceof ApiError && error.status === 401) {
       loggedOutMessage = "Sign in to continue";
     } else {
-      loggedOutMessage = `Session check failed: ${error.message}`;
+      loggedOutMessage = `Session check failed: ${error instanceof Error ? error.message : String(error)}`;
     }
     session.clear();
   }
 }
 
-loadSession();
+void loadSession();

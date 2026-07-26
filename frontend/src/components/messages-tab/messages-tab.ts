@@ -1,31 +1,41 @@
 import template from "./messages-tab.html?raw";
-import { ApiError } from "../../api.js";
-import { showStatus } from "../../dom.js";
+import { ApiClient, ApiError } from "../../api.js";
+import type { MessageSummary } from "../../contracts.js";
+import { errorMessage, queryRequired, showStatus } from "../../dom.js";
 import "../playback-widget/playback-widget.js";
+import type { PlaybackWidget } from "../playback-widget/playback-widget.js";
 
 export class MessagesTab extends HTMLElement {
-  connectedCallback() {
+  private initialized = false;
+  private apiClient: ApiClient | null = null;
+  private list!: HTMLElement;
+  private status!: HTMLElement;
+  private requestId: symbol | null = null;
+
+  connectedCallback(): void {
     if (this.initialized) return;
     this.initialized = true;
     this.innerHTML = template;
-    this.list = this.querySelector(".message-list");
-    this.status = this.querySelector(".status");
-    this.querySelector(".reload-messages").addEventListener("click", () => this.load());
+    this.list = queryRequired<HTMLElement>(this, ".message-list");
+    this.status = queryRequired<HTMLElement>(this, ".status");
+    queryRequired<HTMLButtonElement>(this, ".reload-messages").addEventListener("click", () => {
+      void this.load();
+    });
   }
 
-  set api(value) {
+  set api(value: ApiClient) {
     this.apiClient = value;
   }
 
-  activate() {
-    this.load();
+  activate(): void {
+    void this.load();
   }
 
-  deactivate() {
+  deactivate(): void {
     // Playback intentionally continues when navigating between tabs.
   }
 
-  async load() {
+  async load(): Promise<void> {
     if (!this.apiClient) return;
     const requestId = Symbol();
     this.requestId = requestId;
@@ -37,11 +47,11 @@ export class MessagesTab extends HTMLElement {
       showStatus(this.status, data.messages.length ? "" : "No messages");
     } catch (error) {
       if (this.requestId !== requestId || error instanceof ApiError && error.status === 401) return;
-      showStatus(this.status, `Messages unavailable: ${error.message}`, "error");
+      showStatus(this.status, `Messages unavailable: ${errorMessage(error)}`, "error");
     }
   }
 
-  render(messages) {
+  render(messages: readonly MessageSummary[]): void {
     this.list.replaceChildren(...messages.map((message) => {
       const article = document.createElement("article");
       article.className = "message";
@@ -70,9 +80,9 @@ export class MessagesTab extends HTMLElement {
     }));
   }
 
-  reset() {
+  reset(): void {
     this.requestId = null;
-    this.querySelectorAll("rn-playback").forEach((playback) => playback.reset());
+    this.querySelectorAll<PlaybackWidget>("rn-playback").forEach((playback) => playback.reset());
     this.list.replaceChildren();
     showStatus(this.status, "");
   }

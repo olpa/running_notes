@@ -1,37 +1,53 @@
 import template from "./imap-tab.html?raw";
-import { ApiError } from "../../api.js";
-import { copyText, showStatus } from "../../dom.js";
+import { ApiClient, ApiError } from "../../api.js";
+import type { ImapSettings, User } from "../../contracts.js";
+import { copyText, errorMessage, queryRequired, showStatus } from "../../dom.js";
 
 export class ImapTab extends HTMLElement {
-  connectedCallback() {
+  private initialized = false;
+  private apiClient: ApiClient | null = null;
+  private user: User | null = null;
+  private currentSettings: ImapSettings | null = null;
+  private requestId: symbol | null = null;
+  private passwordRequestId: symbol | null = null;
+  private rows!: HTMLElement;
+  private status!: HTMLElement;
+  private passwordControls!: HTMLElement;
+  private passwordBox!: HTMLElement;
+  private newPassword!: HTMLElement;
+
+  connectedCallback(): void {
     if (this.initialized) return;
     this.initialized = true;
     this.innerHTML = template;
-    this.rows = this.querySelector(".settings-rows");
-    this.status = this.querySelector(".status");
-    this.passwordControls = this.querySelector(".password-controls");
-    this.passwordBox = this.querySelector(".password-box");
-    this.newPassword = this.querySelector(".new-password");
-    this.querySelector(".regenerate-password").addEventListener("click", () => this.regenerate());
-    this.querySelector(".copy-password").addEventListener("click", (event) => {
-      copyText(this.newPassword.textContent, this.status, event.currentTarget);
+    this.rows = queryRequired<HTMLElement>(this, ".settings-rows");
+    this.status = queryRequired<HTMLElement>(this, ".status");
+    this.passwordControls = queryRequired<HTMLElement>(this, ".password-controls");
+    this.passwordBox = queryRequired<HTMLElement>(this, ".password-box");
+    this.newPassword = queryRequired<HTMLElement>(this, ".new-password");
+    queryRequired<HTMLButtonElement>(this, ".regenerate-password").addEventListener("click", () => {
+      void this.regenerate();
+    });
+    queryRequired<HTMLButtonElement>(this, ".copy-password").addEventListener("click", (event: MouseEvent) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      void copyText(this.newPassword.textContent, this.status, button);
     });
   }
 
-  set api(value) {
+  set api(value: ApiClient) {
     this.apiClient = value;
   }
 
-  setUser(user) {
+  setUser(user: User | null): void {
     this.user = user;
     const canChange = Boolean(user?.can_change_imap_password);
     this.passwordControls.classList.toggle("hidden", !canChange);
-    this.querySelector(".password-instruction").textContent = canChange
+    queryRequired<HTMLElement>(this, ".password-instruction").textContent = canChange
       ? "Generate a new app password here if you do not have one."
       : "Use the guest password shown with these settings.";
   }
 
-  async load() {
+  async load(): Promise<void> {
     if (!this.apiClient || !this.user) return;
     const requestId = Symbol();
     this.requestId = requestId;
@@ -45,17 +61,17 @@ export class ImapTab extends HTMLElement {
       if (this.requestId !== requestId) return;
       if (error instanceof ApiError && error.status === 401) return;
       this.rows.replaceChildren();
-      showStatus(this.status, `IMAP settings unavailable: ${error.message}`, "error");
+      showStatus(this.status, `IMAP settings unavailable: ${errorMessage(error)}`, "error");
     }
   }
 
-  activate() {}
-  deactivate() {}
+  activate(): void {}
+  deactivate(): void {}
 
-  renderSettings(settings) {
-    this.querySelector(".imap-port").textContent = String(settings.port);
-    this.querySelector(".smtp-port").textContent = String(settings.smtp_port);
-    const children = [
+  private renderSettings(settings: ImapSettings): void {
+    queryRequired<HTMLElement>(this, ".imap-port").textContent = String(settings.port);
+    queryRequired<HTMLElement>(this, ".smtp-port").textContent = String(settings.smtp_port);
+    const children: HTMLElement[] = [
       this.createRow("Email address", settings.username),
       this.createRow("Username", settings.username),
     ];
@@ -78,14 +94,14 @@ export class ImapTab extends HTMLElement {
     this.rows.replaceChildren(...children);
   }
 
-  createTitle(text) {
+  private createTitle(text: string): HTMLHeadingElement {
     const title = document.createElement("h3");
     title.className = "settings-section-title";
     title.textContent = text;
     return title;
   }
 
-  createWarning() {
+  private createWarning(): HTMLParagraphElement {
     const warning = document.createElement("p");
     warning.className = "settings-warning";
     const strong = document.createElement("strong");
@@ -94,7 +110,7 @@ export class ImapTab extends HTMLElement {
     return warning;
   }
 
-  createRow(label, value) {
+  private createRow(label: string, value: string): HTMLDivElement {
     const row = document.createElement("div");
     row.className = "setting-row";
     const labelElement = document.createElement("div");
@@ -107,20 +123,24 @@ export class ImapTab extends HTMLElement {
     copy.className = "secondary";
     copy.type = "button";
     copy.textContent = "Copy";
-    copy.addEventListener("click", () => copyText(value, this.status, copy));
+    copy.addEventListener("click", () => {
+      void copyText(value, this.status, copy);
+    });
     row.append(labelElement, valueElement, copy);
     return row;
   }
 
-  async regenerate() {
+  private async regenerate(): Promise<void> {
     if (!this.user?.can_change_imap_password) return;
+    const apiClient = this.apiClient;
+    if (!apiClient) return;
     if (!window.confirm("Regenerate the IMAP password? The old password will stop working immediately.")) return;
     showStatus(this.status, "Regenerating...", "busy");
     this.clearNewPassword();
     const requestId = Symbol();
     this.passwordRequestId = requestId;
     try {
-      const data = await this.apiClient.regenerateImapPassword();
+      const data = await apiClient.regenerateImapPassword();
       if (this.passwordRequestId !== requestId) return;
       this.newPassword.textContent = data.imap.password;
       this.passwordBox.classList.add("visible");
@@ -132,16 +152,16 @@ export class ImapTab extends HTMLElement {
     } catch (error) {
       if (this.passwordRequestId !== requestId) return;
       if (error instanceof ApiError && error.status === 401) return;
-      showStatus(this.status, `Regeneration failed: ${error.message}`, "error");
+      showStatus(this.status, `Regeneration failed: ${errorMessage(error)}`, "error");
     }
   }
 
-  clearNewPassword() {
+  private clearNewPassword(): void {
     this.passwordBox.classList.remove("visible");
     this.newPassword.textContent = "";
   }
 
-  reset() {
+  reset(): void {
     this.requestId = null;
     this.passwordRequestId = null;
     this.user = null;
