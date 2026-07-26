@@ -140,7 +140,7 @@ p { margin: 0; }
   width: 100%;
 }
 
-.tab[aria-selected="true"] {
+.tab[aria-current="page"] {
   background: #e8f1ff;
   border-color: #bfd7ff;
   color: #0f4c9f;
@@ -149,11 +149,11 @@ p { margin: 0; }
 .main { min-width: 0; }
 
 .panel {
-  display: none;
+  display: block;
   padding: 22px;
 }
 
-.panel.active { display: block; }
+[hidden] { display: none !important; }
 
 .primary {
   background: var(--accent);
@@ -331,7 +331,10 @@ p { margin: 0; }
 .message-header { display: flex; gap: 8px; justify-content: space-between; }
 .message-subject { font-weight: 700; }
 .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
-.message audio { margin-top: 10px; max-width: 100%; width: 360px; }
+.message rn-playback { display: block; margin-top: 10px; }
+.message audio { max-width: 100%; width: 360px; }
+.playback-status { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+.playback-status.error { color: var(--danger); }
 .panel-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 14px; }
 .site-footer { color: var(--muted); font-size: 0.9rem; margin-top: 28px; text-align: center; }
 .site-footer a { color: var(--accent-dark); margin: 0 8px; }

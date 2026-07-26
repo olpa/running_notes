@@ -1,6 +1,8 @@
 *
 !frontend/
 !frontend/**
+frontend/dist/
+frontend/node_modules/
 !nginx/
 !nginx/nginx.conf
 frontend/Dockerfile
