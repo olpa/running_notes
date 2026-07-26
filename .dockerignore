@@ -5,4 +5,10 @@ frontend/dist/
 frontend/node_modules/
 !nginx/
 !nginx/nginx.conf
+!.git/
+.git/*
+!.git/HEAD
+!.git/packed-refs
+!.git/refs/
+!.git/refs/**
 frontend/Dockerfile

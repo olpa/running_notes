@@ -338,6 +338,7 @@ p { margin: 0; }
 .panel-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 14px; }
 .site-footer { color: var(--muted); font-size: 0.9rem; margin-top: 28px; text-align: center; }
 .site-footer a { color: var(--accent-dark); margin: 0 8px; }
+.site-footer #buildInfo { display: block; margin-top: 8px; }
 .hidden { display: none !important; }
 
 @media (max-width: 720px) {

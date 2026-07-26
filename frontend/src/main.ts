@@ -1,5 +1,6 @@
 import "../styles.css";
 import { ApiClient, ApiError } from "./api.js";
+import { buildInfo, formatBuildInfo } from "./build-info.js";
 import type { User } from "./contracts.js";
 import { queryRequired, showStatus } from "./dom.js";
 import { createSession } from "./session.js";
@@ -20,7 +21,10 @@ const elements = {
   messages: queryRequired<MessagesTab>(document, "rn-messages-tab"),
   imap: queryRequired<ImapTab>(document, "rn-imap-tab"),
   account: queryRequired<AccountTab>(document, "rn-account-tab"),
+  buildInfo: queryRequired<HTMLElement>(document, "#buildInfo"),
 };
+
+elements.buildInfo.textContent = formatBuildInfo(buildInfo);
 
 const session = createSession();
 let loggedOutMessage = "Sign in to continue";
