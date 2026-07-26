@@ -12,9 +12,7 @@ export class RecordTab extends HTMLElement {
   private enabled = false;
   private recorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
-  private chunks: Blob[] = [];
-  private mimeType = "audio/webm";
-  private discardOnStop = false;
+  private lifecycleGeneration = 0;
   private recorderState: RecorderState = "disabled";
 
   connectedCallback(): void {
@@ -72,38 +70,50 @@ export class RecordTab extends HTMLElement {
       return;
     }
 
+    const recordingGeneration = this.lifecycleGeneration;
+    let requestedStream: MediaStream | null = null;
     this.setState("requesting");
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!this.enabled) {
-        this.stopTracks();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      requestedStream = stream;
+      if (!this.enabled || recordingGeneration !== this.lifecycleGeneration) {
+        this.stopStream(stream);
         return;
       }
-      this.chunks = [];
-      this.mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      const chunks: Blob[] = [];
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm";
-      this.recorder = new MediaRecorder(this.stream, { mimeType: this.mimeType });
-      this.recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 0) this.chunks.push(event.data);
+      const recorder = new MediaRecorder(stream, { mimeType });
+      this.stream = stream;
+      this.recorder = recorder;
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
       });
-      this.recorder.addEventListener("stop", () => {
-        void this.handleStop();
+      recorder.addEventListener("stop", () => {
+        void this.handleStop({
+          chunks,
+          generation: recordingGeneration,
+          mimeType,
+          recorder,
+          stream,
+        });
       }, { once: true });
-      this.recorder.start();
+      recorder.start();
       this.setState("recording");
     } catch (error) {
-      this.stopTracks();
+      if (requestedStream) this.stopStream(requestedStream);
+      if (recordingGeneration !== this.lifecycleGeneration) return;
       this.setState("idle");
       showStatus(this.status, `Microphone error: ${errorMessage(error)}`, "error");
     }
   }
 
-  private async handleStop(): Promise<void> {
-    this.stopTracks();
-    if (this.discardOnStop || !this.enabled) {
-      this.discardOnStop = false;
-      this.chunks = [];
+  private async handleStop(recording: CompletedRecording): Promise<void> {
+    this.stopStream(recording.stream);
+    if (this.stream === recording.stream) this.stream = null;
+    if (this.recorder === recording.recorder) this.recorder = null;
+    if (!this.enabled || recording.generation !== this.lifecycleGeneration) {
       this.setState(this.enabled ? "idle" : "disabled");
       return;
     }
@@ -115,8 +125,11 @@ export class RecordTab extends HTMLElement {
       return;
     }
     const form = new FormData();
-    form.append("file", new Blob(this.chunks, { type: this.mimeType }), "audio.webm");
-    this.chunks = [];
+    form.append(
+      "file",
+      new Blob(recording.chunks, { type: recording.mimeType }),
+      "audio.webm",
+    );
     try {
       await apiClient.uploadRecording(form);
       if (this.enabled) {
@@ -133,18 +146,29 @@ export class RecordTab extends HTMLElement {
   }
 
   private stopTracks(): void {
-    this.stream?.getTracks().forEach((track) => track.stop());
+    if (this.stream) this.stopStream(this.stream);
     this.stream = null;
   }
 
+  private stopStream(stream: MediaStream): void {
+    stream.getTracks().forEach((track) => track.stop());
+  }
+
   reset(): void {
+    this.lifecycleGeneration += 1;
     this.enabled = false;
-    this.discardOnStop = true;
     if (this.recorder?.state === "recording") this.recorder.stop();
     else this.stopTracks();
-    this.chunks = [];
     this.setState("disabled");
   }
+}
+
+interface CompletedRecording {
+  chunks: Blob[];
+  generation: number;
+  mimeType: string;
+  recorder: MediaRecorder;
+  stream: MediaStream;
 }
 
 customElements.define("rn-record-tab", RecordTab);
