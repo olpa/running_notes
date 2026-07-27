@@ -55,6 +55,9 @@ forcing the host to swap.
 The backend receives the largest allowance because each in-flight upload is
 currently buffered in memory. Five uploads at the default 25 MiB maximum can
 therefore add about 125 MiB before Python and request-processing overhead.
+Its root filesystem is read-only. Audio conversion uses a writable `/tmp`
+tmpfs capped at 128 MiB; persistent application data is written only through
+the `/state` and `/var/mail/voiceinbox` mounts.
 Container JSON logs are rotated at 10 MiB with three files per service, bounding
 their approximate retained size at 120 MiB for the stack.
 

@@ -94,6 +94,9 @@ services:
     volumes:
       - ./state:/state
       - ./maildir:/var/mail/voiceinbox
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777
     networks:
       - frontend
       - backend
