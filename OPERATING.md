@@ -55,6 +55,9 @@ forcing the host to swap.
 The backend receives the largest allowance because each in-flight upload is
 currently buffered in memory. Five uploads at the default 25 MiB maximum can
 therefore add about 125 MiB before Python and request-processing overhead.
+Its root filesystem is read-only. Audio conversion uses a writable `/tmp`
+tmpfs capped at 128 MiB; persistent application data is written only through
+the `/state` and `/var/mail/voiceinbox` mounts.
 Container JSON logs are rotated at 10 MiB with three files per service, bounding
 their approximate retained size at 120 MiB for the stack.
 
@@ -170,7 +173,7 @@ Unknown users, inactive users, disabled password hashes, and invalid passwords s
 
 ## Recorder uploads
 
-Recording uploads require a signed web session. Audio is accepted only as WebM (`audio/webm`) and capped by `MAX_UPLOAD_BYTES`, which defaults to 25 MiB. The backend converts each upload to a mono, 16 kHz, 48 kbps CBR MP3 without ID3 tags and stores it under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Each user is limited to `MAX_USER_NOTES_PER_DAY` notes per UTC day (default 100) and `MAX_USER_NOTE_BYTES` total stored audio (default 250 MiB).
+Recording uploads require a signed web session. The frontend displays recording progress and automatically stops at 30 seconds. Audio is accepted only as WebM (`audio/webm`) and capped by `MAX_UPLOAD_BYTES`, which defaults to 25 MiB. The backend independently rejects converted recordings longer than 33 seconds, allowing a small margin for browser and encoder timing. It converts accepted uploads to mono, 16 kHz, 48 kbps CBR MP3 without ID3 tags and stores them under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Each user is limited to `MAX_USER_NOTES_PER_DAY` notes per UTC day (default 100) and `MAX_USER_NOTE_BYTES` total stored audio (default 250 MiB).
 
 
 ## User portal

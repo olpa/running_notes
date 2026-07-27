@@ -4,16 +4,24 @@ import { errorMessage, queryRequired, showStatus } from "../../dom.js";
 
 type RecorderState = "disabled" | "idle" | "requesting" | "recording" | "uploading";
 
+const MAX_RECORDING_SECONDS = 30;
+const RECORDING_PROGRESS_INTERVAL_MS = 100;
+
 export class RecordTab extends HTMLElement {
   private initialized = false;
   private apiClient: ApiClient | null = null;
   private button!: HTMLButtonElement;
   private status!: HTMLElement;
+  private progressContainer!: HTMLElement;
+  private progressBar!: HTMLProgressElement;
+  private recordingTime!: HTMLElement;
   private enabled = false;
   private recorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
   private lifecycleGeneration = 0;
   private recorderState: RecorderState = "disabled";
+  private recordingStartedAt = 0;
+  private progressInterval: number | null = null;
 
   connectedCallback(): void {
     if (this.initialized) return;
@@ -21,6 +29,9 @@ export class RecordTab extends HTMLElement {
     this.innerHTML = template;
     this.button = queryRequired<HTMLButtonElement>(this, ".record-button");
     this.status = queryRequired<HTMLElement>(this, ".status");
+    this.progressContainer = queryRequired<HTMLElement>(this, ".recording-progress");
+    this.progressBar = queryRequired<HTMLProgressElement>(this, ".recording-progress-bar");
+    this.recordingTime = queryRequired<HTMLElement>(this, ".recording-time");
     this.button.addEventListener("click", () => {
       void this.toggleRecording();
     });
@@ -49,6 +60,7 @@ export class RecordTab extends HTMLElement {
     this.button.textContent = recording ? "Stop" : "Record";
     this.button.classList.toggle("recording", recording);
     this.button.disabled = state === "disabled" || state === "requesting" || state === "uploading";
+    this.progressContainer.hidden = !recording;
     const defaults: Record<RecorderState, string> = {
       disabled: "Ready",
       idle: "Ready",
@@ -66,7 +78,7 @@ export class RecordTab extends HTMLElement {
   private async toggleRecording(): Promise<void> {
     if (!this.enabled || !this.apiClient) return;
     if (this.recorder?.state === "recording") {
-      this.recorder.stop();
+      this.stopRecording();
       return;
     }
 
@@ -100,6 +112,7 @@ export class RecordTab extends HTMLElement {
         });
       }, { once: true });
       recorder.start();
+      this.startRecordingProgress();
       this.setState("recording");
     } catch (error) {
       if (requestedStream) this.stopStream(requestedStream);
@@ -110,6 +123,7 @@ export class RecordTab extends HTMLElement {
   }
 
   private async handleStop(recording: CompletedRecording): Promise<void> {
+    this.stopRecordingProgress();
     this.stopStream(recording.stream);
     if (this.stream === recording.stream) this.stream = null;
     if (this.recorder === recording.recorder) this.recorder = null;
@@ -150,6 +164,38 @@ export class RecordTab extends HTMLElement {
     this.stream = null;
   }
 
+  private startRecordingProgress(): void {
+    this.recordingStartedAt = Date.now();
+    this.updateRecordingProgress(0);
+    this.progressInterval = window.setInterval(() => {
+      const elapsedSeconds = (Date.now() - this.recordingStartedAt) / 1000;
+      this.updateRecordingProgress(elapsedSeconds);
+      if (elapsedSeconds >= MAX_RECORDING_SECONDS) this.stopRecording();
+    }, RECORDING_PROGRESS_INTERVAL_MS);
+  }
+
+  private stopRecording(): void {
+    if (this.recorder?.state !== "recording") return;
+    this.stopRecordingProgress();
+    this.recorder.stop();
+  }
+
+  private stopRecordingProgress(): void {
+    if (this.progressInterval !== null) {
+      window.clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+  }
+
+  private updateRecordingProgress(elapsedSeconds: number): void {
+    const boundedSeconds = Math.min(elapsedSeconds, MAX_RECORDING_SECONDS);
+    const wholeSeconds = Math.floor(boundedSeconds);
+    this.progressBar.value = boundedSeconds;
+    this.progressBar.textContent = `${wholeSeconds} of ${MAX_RECORDING_SECONDS} seconds`;
+    this.recordingTime.textContent =
+      `0:${wholeSeconds.toString().padStart(2, "0")} / 0:30`;
+  }
+
   private stopStream(stream: MediaStream): void {
     stream.getTracks().forEach((track) => track.stop());
   }
@@ -157,7 +203,7 @@ export class RecordTab extends HTMLElement {
   reset(): void {
     this.lifecycleGeneration += 1;
     this.enabled = false;
-    if (this.recorder?.state === "recording") this.recorder.stop();
+    if (this.recorder?.state === "recording") this.stopRecording();
     else this.stopTracks();
     this.setState("disabled");
   }

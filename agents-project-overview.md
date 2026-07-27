@@ -135,6 +135,7 @@ Current behavior:
 - `POST /api/record` requires the signed web session and rejects anonymous uploads;
 - uploads accept `audio/webm` only, including browser content types with parameters such as `audio/webm;codecs=opus`;
 - each upload is read with a hard size cap, `MAX_UPLOAD_BYTES`, defaulting to 25 MiB;
+- the frontend shows recording progress and automatically stops at 30 seconds, while the backend rejects recordings longer than 33 seconds;
 - accepted uploads are converted to mono, 16 kHz, 48 kbps CBR MP3 without ID3 tags before storage and mail delivery;
 - per-user quota is enforced with `MAX_USER_NOTES` and `MAX_USER_NOTE_BYTES`, defaulting to 100 notes and 250 MiB;
 - note IDs use UTC timestamp plus random suffix, for example `note-20260705T083354Z-a1b2c3d4`;

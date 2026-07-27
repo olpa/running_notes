@@ -18,7 +18,13 @@ from authlib.integrations.base_client.errors import OAuthError
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
-from audio import AudioConversionError, convert_webm_to_mp3
+from audio import (
+    AudioConversionError,
+    AudioTooLongError,
+    InvalidAudioRange,
+    convert_webm_to_mp3,
+    parse_audio_byte_range,
+)
 from autoconfig import (
     AutoconfigRequestError,
     outlook_request_email,
@@ -596,6 +602,13 @@ async def record(request: Request, file: UploadFile):
         audio_bytes = await asyncio.to_thread(
             convert_webm_to_mp3, uploaded_audio_bytes
         )
+    except AudioTooLongError as exc:
+        logger.info(
+            "Overlong audio rejected user_id=%s email=%s", user["id"], user["email"]
+        )
+        raise HTTPException(
+            status_code=413, detail="Recording exceeds the 30-second limit"
+        ) from exc
     except AudioConversionError as exc:
         logger.warning(
             "Audio conversion failed user_id=%s email=%s", user["id"], user["email"]
@@ -710,4 +723,24 @@ def message_audio(message_key: str, audio_index: int, request: Request):
     if audio is None:
         raise HTTPException(status_code=404, detail="Audio attachment not found")
     payload, content_type, _filename = audio
-    return Response(payload, media_type=content_type)
+    headers = {"Accept-Ranges": "bytes"}
+    requested_range = request.headers.get("range")
+    if requested_range is None:
+        return Response(payload, media_type=content_type, headers=headers)
+
+    try:
+        start, end = parse_audio_byte_range(requested_range, len(payload))
+    except InvalidAudioRange as exc:
+        raise HTTPException(
+            status_code=416,
+            detail="Requested range not satisfiable",
+            headers={"Content-Range": f"bytes */{len(payload)}"},
+        ) from exc
+
+    headers["Content-Range"] = f"bytes {start}-{end}/{len(payload)}"
+    return Response(
+        payload[start : end + 1],
+        status_code=206,
+        media_type=content_type,
+        headers=headers,
+    )
