@@ -87,7 +87,7 @@ Ticket `#14` / `MVP2-004: Generate And Manage IMAP Credentials` is implemented.
 
 Current behavior:
 
-- `create-user` generates a random pronounceable IMAP password when a user is created, formatted as three syllabic chunks plus four digits, for example `maviro-luneta-sokami-4827`;
+- `create-user` generates a random pronounceable IMAP password when a user is created, formatted as two syllabic chunks plus four digits, for example `maviro-luneta-4827`;
 - the plaintext password is printed once in the admin CLI JSON output;
 - plaintext passwords are never stored;
 - `users.imap_password_hash` stores `{SHA512-CRYPT}` hashes that Dovecot SQL passdb can return directly;
