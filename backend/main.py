@@ -20,6 +20,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from audio import (
     AudioConversionError,
+    AudioTooLongError,
     InvalidAudioRange,
     convert_webm_to_mp3,
     parse_audio_byte_range,
@@ -601,6 +602,13 @@ async def record(request: Request, file: UploadFile):
         audio_bytes = await asyncio.to_thread(
             convert_webm_to_mp3, uploaded_audio_bytes
         )
+    except AudioTooLongError as exc:
+        logger.info(
+            "Overlong audio rejected user_id=%s email=%s", user["id"], user["email"]
+        )
+        raise HTTPException(
+            status_code=413, detail="Recording exceeds the 30-second limit"
+        ) from exc
     except AudioConversionError as exc:
         logger.warning(
             "Audio conversion failed user_id=%s email=%s", user["id"], user["email"]

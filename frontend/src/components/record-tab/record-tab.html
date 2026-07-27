@@ -1,3 +1,8 @@
 <h2>Record note</h2>
-<button class="primary record-button" disabled type="button">Record</button>
+<p class="recording-hint" id="recording-limit">Recordings are limited to 30 seconds.</p>
+<button class="primary record-button" aria-describedby="recording-limit" disabled type="button">Record</button>
+<div class="recording-progress" hidden>
+  <div class="recording-time" aria-live="off">0:00 / 0:30</div>
+  <progress class="recording-progress-bar" aria-label="Recording duration" max="30" value="0">0 of 30 seconds</progress>
+</div>
 <div class="status" aria-live="polite">Ready</div>

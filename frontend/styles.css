@@ -205,6 +205,28 @@ p { margin: 0; }
 
 .record-button.recording { background: var(--danger); }
 
+.recording-hint {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.recording-progress {
+  margin-top: 14px;
+  width: min(100%, 320px);
+}
+
+.recording-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 5px;
+  text-align: right;
+}
+
+.recording-progress-bar {
+  display: block;
+  width: 100%;
+}
+
 .status {
   border-left: 4px solid var(--line);
   margin-top: 18px;

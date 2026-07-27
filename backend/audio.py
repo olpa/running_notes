@@ -5,10 +5,15 @@ from pathlib import Path
 MP3_CHANNELS = 1
 MP3_SAMPLE_RATE = 16_000
 MP3_BITRATE = "48k"
+MAX_AUDIO_DURATION_SECONDS = 33
 TRANSCODE_TIMEOUT_SECONDS = 120
 
 
 class AudioConversionError(RuntimeError):
+    pass
+
+
+class AudioTooLongError(AudioConversionError):
     pass
 
 
@@ -56,12 +61,42 @@ def convert_webm_to_mp3(webm_bytes: bytes) -> bytes:
                 timeout=TRANSCODE_TIMEOUT_SECONDS,
             )
             mp3_bytes = output_path.read_bytes() if result.returncode == 0 else b""
+            if mp3_bytes:
+                duration = _probe_audio_duration(output_path)
+                if duration > MAX_AUDIO_DURATION_SECONDS:
+                    raise AudioTooLongError("Audio recording is too long")
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise AudioConversionError("Audio conversion failed") from exc
 
     if not mp3_bytes:
         raise AudioConversionError("Audio conversion failed")
     return mp3_bytes
+
+
+def _probe_audio_duration(audio_path: Path) -> float:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(audio_path),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=TRANSCODE_TIMEOUT_SECONDS,
+    )
+    try:
+        duration = float(result.stdout.strip())
+    except ValueError as exc:
+        raise AudioConversionError("Could not determine audio duration") from exc
+    if result.returncode != 0 or duration <= 0:
+        raise AudioConversionError("Could not determine audio duration")
+    return duration
 
 
 def parse_audio_byte_range(value: str, total_bytes: int) -> tuple[int, int]:
