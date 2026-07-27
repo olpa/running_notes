@@ -18,6 +18,7 @@ from authlib.integrations.base_client.errors import OAuthError
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
+from audio import AudioConversionError, convert_webm_to_mp3
 from autoconfig import (
     AutoconfigRequestError,
     outlook_request_email,
@@ -205,8 +206,8 @@ def deliver_via_lmtp(
     body = MIMEText("Voice note recorded via running-notes.", "plain")
     msg.attach(body)
 
-    attachment = MIMEAudio(audio_bytes, "webm")
-    attachment.add_header("Content-Disposition", "attachment", filename="audio.webm")
+    attachment = MIMEAudio(audio_bytes, "mpeg")
+    attachment.add_header("Content-Disposition", "attachment", filename="audio.mp3")
     msg.attach(attachment)
 
     try:
@@ -289,9 +290,10 @@ def user_note_usage(notes_dir: Path, day: datetime) -> tuple[int, int]:
             if created_at.astimezone(timezone.utc).date() == day.date():
                 daily_note_count += 1
 
-        audio_path = note_dir / "audio.webm"
-        if audio_path.exists():
-            total_bytes += audio_path.stat().st_size
+        for filename in ("audio.mp3", "audio.webm"):
+            audio_path = note_dir / filename
+            if audio_path.exists():
+                total_bytes += audio_path.stat().st_size
 
     return daily_note_count, total_bytes
 
@@ -589,14 +591,24 @@ async def record(request: Request, file: UploadFile):
     media_type = file.content_type or ""
     validate_upload_type(file)
 
-    audio_bytes = await read_limited_upload(file)
+    uploaded_audio_bytes = await read_limited_upload(file)
+    try:
+        audio_bytes = await asyncio.to_thread(
+            convert_webm_to_mp3, uploaded_audio_bytes
+        )
+    except AudioConversionError as exc:
+        logger.warning(
+            "Audio conversion failed user_id=%s email=%s", user["id"], user["email"]
+        )
+        raise HTTPException(status_code=422, detail="Invalid audio recording") from exc
+
     created_at = datetime.now(timezone.utc)
     enforce_user_quota(user, len(audio_bytes), created_at)
     note_id = note_id_for(created_at)
     note_dir = note_dir_for(user["id"], note_id)
     note_dir.mkdir(parents=True, exist_ok=False)
 
-    audio_path = note_dir / "audio.webm"
+    audio_path = note_dir / "audio.mp3"
     audio_path.write_bytes(audio_bytes)
 
     created_at_str = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -610,10 +622,12 @@ async def record(request: Request, file: UploadFile):
     (note_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
 
     logger.info(
-        "Note uploaded note_id=%s user_id=%s email=%s bytes=%d content_type=%s",
+        "Note uploaded note_id=%s user_id=%s email=%s upload_bytes=%d "
+        "stored_bytes=%d content_type=%s",
         note_id,
         user["id"],
         user["email"],
+        len(uploaded_audio_bytes),
         len(audio_bytes),
         media_type,
     )
@@ -635,10 +649,14 @@ def get_note(note_id: str, request: Request):
 @app.get("/api/note/{note_id}/audio")
 def get_audio(note_id: str, request: Request):
     user = current_active_user(request)
-    audio_path = note_dir_for(user["id"], note_id) / "audio.webm"
-    if not audio_path.exists():
-        raise HTTPException(status_code=404, detail="Audio not found")
-    return FileResponse(audio_path, media_type="audio/webm")
+    note_dir = note_dir_for(user["id"], note_id)
+    mp3_path = note_dir / "audio.mp3"
+    if mp3_path.exists():
+        return FileResponse(mp3_path, media_type="audio/mpeg")
+    webm_path = note_dir / "audio.webm"
+    if webm_path.exists():
+        return FileResponse(webm_path, media_type="audio/webm")
+    raise HTTPException(status_code=404, detail="Audio not found")
 
 @app.get("/api/messages")
 def list_messages(
