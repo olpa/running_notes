@@ -25,6 +25,10 @@ describe("rn-messages-tab", () => {
     expect(tab.querySelector("rn-playback")?.getAttribute("src")).toBe(
       "/api/messages/1%2F2/audio/3",
     );
+    expect(tab.querySelector<HTMLAnchorElement>(".download-audio")?.getAttribute("href")).toBe(
+      "/api/messages/1%2F2/audio/3",
+    );
+    expect(tab.querySelector<HTMLAnchorElement>(".download-audio")?.download).toBe("audio-4");
     expect(tab.querySelector<HTMLAnchorElement>(".message-subject a")?.pathname).toBe(
       "/messages/1%2F2",
     );

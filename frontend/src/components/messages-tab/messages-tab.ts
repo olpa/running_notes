@@ -113,6 +113,7 @@ export class MessagesTab extends HTMLElement {
       message.audio.forEach((attachment) => {
         const playback = document.createElement("rn-playback");
         playback.setAttribute("src", `/api/messages/${encodeURIComponent(message.id)}/audio/${attachment.index}`);
+        playback.setAttribute("filename", attachment.filename || `audio-${attachment.index + 1}`);
         article.append(playback);
       });
       return article;

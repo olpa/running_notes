@@ -11,6 +11,8 @@ export interface SessionResponse {
 
 export interface AudioAttachment {
   index: number;
+  filename?: string | null;
+  content_type?: string;
 }
 
 export interface MessageSummary {

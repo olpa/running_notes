@@ -357,7 +357,13 @@ p { margin: 0; }
 .message-subject a { color: inherit; }
 .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
 .message rn-playback { display: block; margin-top: 10px; }
+.playback-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
 .message audio { max-width: 100%; width: 360px; }
+.download-audio {
+  color: var(--accent-dark);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
 .playback-status { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
 .playback-status.error { color: var(--danger); }
 .info-alert { background: #e8f1ff; border-left: 4px solid var(--accent); color: var(--text); margin-bottom: 14px; padding: 12px 14px; }
