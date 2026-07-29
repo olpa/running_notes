@@ -113,7 +113,7 @@ export class MessagesTab extends HTMLElement {
       message.audio.forEach((attachment) => {
         const playback = document.createElement("rn-playback");
         playback.setAttribute("src", `/api/messages/${encodeURIComponent(message.id)}/audio/${attachment.index}`);
-        playback.setAttribute("filename", attachment.filename || `audio-${attachment.index + 1}`);
+        playback.setAttribute("filename", audioDownloadFilename(message.subject, attachment));
         article.append(playback);
       });
       return article;
@@ -138,3 +138,27 @@ export class MessagesTab extends HTMLElement {
 }
 
 customElements.define("rn-messages-tab", MessagesTab);
+
+function audioDownloadFilename(
+  subject: string,
+  attachment: MessageSummary["audio"][number],
+): string {
+  const safeSubject = subject
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/^[- .]+|[- .]+$/g, "")
+    .trim()
+    .slice(0, 120) || "audio";
+  const filenameExtension = attachment.filename?.match(/\.([a-z0-9]{1,8})$/i)?.[1];
+  const contentTypeExtension: Record<string, string> = {
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/ogg": "ogg",
+    "audio/wav": "wav",
+    "audio/webm": "webm",
+  };
+  const extension = filenameExtension
+    || (attachment.content_type && contentTypeExtension[attachment.content_type])
+    || "mp3";
+  return `${safeSubject}.${extension}`;
+}

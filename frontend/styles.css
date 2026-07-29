@@ -360,10 +360,18 @@ p { margin: 0; }
 .playback-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
 .message audio { max-width: 100%; width: 360px; }
 .download-audio {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   color: var(--accent-dark);
-  font-size: 0.9rem;
-  font-weight: 650;
+  display: inline-flex;
+  height: 2.5rem;
+  justify-content: center;
+  width: 2.5rem;
 }
+.download-audio:hover { background: #eef4ff; border-color: var(--accent); }
+.download-audio:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.download-audio svg { fill: none; height: 1.25rem; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 1.25rem; }
 .playback-status { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
 .playback-status.error { color: var(--danger); }
 .info-alert { background: #e8f1ff; border-left: 4px solid var(--accent); color: var(--text); margin-bottom: 14px; padding: 12px 14px; }

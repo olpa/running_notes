@@ -17,7 +17,7 @@ describe("rn-messages-tab", () => {
       date: "2026-07-26T12:00:00Z",
       from: "sender@example.com",
       preview: "A voice note",
-      audio: [{ index: 3 }],
+      audio: [{ index: 3, filename: "audio.mp3", content_type: "audio/mpeg" }],
     }]);
 
     expect(tab.querySelector(".message-subject")?.textContent).toBe("<strong>not markup</strong>");
@@ -28,7 +28,12 @@ describe("rn-messages-tab", () => {
     expect(tab.querySelector<HTMLAnchorElement>(".download-audio")?.getAttribute("href")).toBe(
       "/api/messages/1%2F2/audio/3",
     );
-    expect(tab.querySelector<HTMLAnchorElement>(".download-audio")?.download).toBe("audio-4");
+    expect(tab.querySelector<HTMLAnchorElement>(".download-audio")?.download).toBe(
+      "strong-not markup-strong.mp3",
+    );
+    expect(tab.querySelector<HTMLAnchorElement>(".download-audio")?.ariaLabel).toBe(
+      "Download audio",
+    );
     expect(tab.querySelector<HTMLAnchorElement>(".message-subject a")?.pathname).toBe(
       "/messages/1%2F2",
     );
