@@ -73,6 +73,42 @@ describe("rn-messages-tab", () => {
       .toBe("Linked message");
   });
 
+  it("confirms, deletes, and reloads a message", async () => {
+    const fetchImpl: typeof fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({
+        messages: [],
+        limit: 100,
+        requested_message_found: null,
+      }));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const tab = document.createElement("rn-messages-tab");
+    document.body.append(tab);
+    tab.api = new ApiClient({ fetchImpl });
+    tab.render([{
+      id: "mailbox/key",
+      subject: "Morning run",
+      date: null,
+      from: "",
+      preview: "",
+      audio: [],
+    }]);
+
+    tab.querySelector<HTMLButtonElement>(".delete-message")?.click();
+
+    await vi.waitFor(() => {
+      expect(fetchImpl).toHaveBeenNthCalledWith(
+        1,
+        "/api/messages/mailbox%2Fkey",
+        { method: "DELETE" },
+      );
+      expect(tab.querySelector(".message")).toBeNull();
+    });
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Permanently delete “Morning run”?",
+    );
+  });
+
   it("shows the list and an informational notice when a linked message is unavailable", async () => {
     const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
       Response.json({

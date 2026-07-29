@@ -35,6 +35,29 @@ class DoveadmMailboxTests(unittest.TestCase):
             {"mailbox-guid":"a"*32,"uid":"1","date.saved.unixtime":"10"},
             {"mailbox-guid":"a"*32,"uid":"3","date.saved.unixtime":"20"}])
         self.assertEqual([r.uid for r in self.mailbox.latest_references("alice", 2)], [3, 2])
+
+    def test_deletes_an_existing_message_by_guid_and_uid(self):
+        reference = MailReference("a" * 32, 42)
+        self.mailbox.fetch_message = Mock(return_value=b"message")
+        self.mailbox._request = Mock(return_value=[])
+
+        self.assertTrue(self.mailbox.delete_message("alice", reference))
+        self.mailbox._request.assert_called_once_with(
+            "expunge",
+            {
+                "user": "alice",
+                "query": ["mailbox-guid", "a" * 32, "uid", "42"],
+            },
+        )
+
+    def test_does_not_expunge_a_missing_message(self):
+        reference = MailReference("a" * 32, 42)
+        self.mailbox.fetch_message = Mock(return_value=None)
+        self.mailbox._request = Mock(return_value=[])
+
+        self.assertFalse(self.mailbox.delete_message("alice", reference))
+        self.mailbox._request.assert_not_called()
+
     @patch("mailbox.httpx.post")
     def test_rejects_doveadm_error(self, post):
         response = Mock(); response.raise_for_status.return_value = None

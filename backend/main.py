@@ -744,3 +744,26 @@ def message_audio(message_key: str, audio_index: int, request: Request):
         media_type=content_type,
         headers=headers,
     )
+
+
+@app.delete("/api/messages/{message_key}", status_code=204)
+def delete_message(message_key: str, request: Request):
+    user = current_active_user(request)
+    try:
+        reference = MailReference.from_key(message_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Message not found") from exc
+    try:
+        deleted = mailbox.delete_message(user["imap_username"], reference)
+    except MailboxError as exc:
+        logger.exception("Dovecot message deletion failed user_id=%s", user["id"])
+        raise HTTPException(status_code=503, detail="Mailbox is unavailable") from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Message not found")
+    logger.info(
+        "Message deleted user_id=%s mailbox_guid=%s uid=%s",
+        user["id"],
+        reference.mailbox_guid,
+        reference.uid,
+    )
+    return Response(status_code=204)

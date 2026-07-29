@@ -94,6 +94,12 @@ export class ApiClient {
     return this.requestJson<MessagesResponse>(`/api/messages${query}`);
   }
 
+  deleteMessage(messageKey: string): Promise<void> {
+    return this.requestEmpty(`/api/messages/${encodeURIComponent(messageKey)}`, {
+      method: "DELETE",
+    });
+  }
+
   getImapSettings(): Promise<ImapSettingsResponse> {
     return this.requestJson<ImapSettingsResponse>("/api/me/imap-settings");
   }

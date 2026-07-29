@@ -93,13 +93,29 @@ export class MessagesTab extends HTMLElement {
       const date = document.createElement("time");
       date.className = "muted";
       date.textContent = message.date ? new Date(message.date).toLocaleString() : "";
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "delete-message";
+      deleteButton.type = "button";
+      deleteButton.title = "Delete message";
+      deleteButton.setAttribute("aria-label", `Delete ${message.subject}`);
+      deleteButton.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"></path>
+        </svg>
+      `;
+      deleteButton.addEventListener("click", () => {
+        void this.deleteMessage(message, deleteButton);
+      });
+      const headerActions = document.createElement("div");
+      headerActions.className = "message-header-actions";
+      headerActions.append(date, deleteButton);
       const from = document.createElement("div");
       from.className = "message-meta";
       from.textContent = message.from;
       const preview = document.createElement("div");
       preview.className = "message-preview";
       preview.textContent = message.preview;
-      header.append(subject, date);
+      header.append(subject, headerActions);
       article.append(header, from, preview);
       article.dataset.messageId = message.id;
       if (message.id === selectedMessageKey) {
@@ -126,6 +142,31 @@ export class MessagesTab extends HTMLElement {
     if (!(selected instanceof HTMLElement)) return;
     selected.focus({ preventScroll: true });
     selected.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }
+
+  private async deleteMessage(
+    message: MessageSummary,
+    button: HTMLButtonElement,
+  ): Promise<void> {
+    if (!this.apiClient) return;
+    if (!window.confirm(`Permanently delete “${message.subject}”?`)) return;
+    button.disabled = true;
+    showStatus(this.status, "Deleting...", "busy");
+    try {
+      await this.apiClient.deleteMessage(message.id);
+      if (this.messageRequested && this.requestedMessageKey === message.id) {
+        this.dispatchEvent(new CustomEvent<string>("navigate-requested", {
+          bubbles: true,
+          detail: "/messages",
+        }));
+      } else {
+        await this.load();
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) return;
+      button.disabled = false;
+      showStatus(this.status, `Delete failed: ${errorMessage(error)}`, "error");
+    }
   }
 
   reset(): void {

@@ -47,14 +47,14 @@ def references_with_requested(
     return [requested, *references], requested
 
 class DoveadmMailbox:
-    """Read mail through Dovecot's doveadm HTTP API, never Maildir files."""
+    """Access mail through Dovecot's doveadm HTTP API, never Maildir files."""
     def __init__(self, url: str, password: str, timeout_seconds: float = 15.0):
         if not password:
             raise ValueError("DOVEADM_PASSWORD is required")
         self.url, self.password, self.timeout_seconds = url, password, timeout_seconds
 
-    def _fetch(self, user: str, fields: list[str], query: list[str]) -> list[dict]:
-        payload = [["fetch", {"user": user, "field": fields, "query": query}, "mail"]]
+    def _request(self, command: str, parameters: dict) -> list[dict]:
+        payload = [[command, parameters, "mail"]]
         try:
             encoded_key = base64.b64encode(self.password.encode()).decode()
             response = httpx.post(self.url, headers={"Authorization": f"X-Dovecot-API {encoded_key}", "X-API-Key": encoded_key}, json=payload, timeout=self.timeout_seconds)
@@ -68,6 +68,12 @@ class DoveadmMailbox:
         if kind != "doveadmResponse" or tag != "mail" or not isinstance(rows, list):
             raise MailboxError("Dovecot rejected the mailbox request")
         return rows
+
+    def _fetch(self, user: str, fields: list[str], query: list[str]) -> list[dict]:
+        return self._request(
+            "fetch",
+            {"user": user, "field": fields, "query": query},
+        )
 
     def latest_references(self, user: str, limit: int) -> list[MailReference]:
         rows = self._fetch(user, ["mailbox-guid", "uid", "date.saved.unixtime"], ["mailbox", "INBOX", "all"])
@@ -101,3 +107,20 @@ class DoveadmMailbox:
     def fetch_message(self, user: str, reference: MailReference) -> bytes | None:
         messages = self.fetch_messages(user, [reference])
         return messages[0][1] if messages else None
+
+    def delete_message(self, user: str, reference: MailReference) -> bool:
+        if self.fetch_message(user, reference) is None:
+            return False
+        self._request(
+            "expunge",
+            {
+                "user": user,
+                "query": [
+                    "mailbox-guid",
+                    reference.mailbox_guid,
+                    "uid",
+                    str(reference.uid),
+                ],
+            },
+        )
+        return True

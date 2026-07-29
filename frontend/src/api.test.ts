@@ -71,4 +71,18 @@ describe("ApiClient", () => {
       {},
     );
   });
+
+  it("deletes an opaque message key", async () => {
+    const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
+      new Response(null, { status: 204 })
+    ));
+    const api = new ApiClient({ fetchImpl });
+
+    await api.deleteMessage("mailbox/key");
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/messages/mailbox%2Fkey",
+      { method: "DELETE" },
+    );
+  });
 });
