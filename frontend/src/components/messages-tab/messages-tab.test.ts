@@ -73,6 +73,70 @@ describe("rn-messages-tab", () => {
       .toBe("Linked message");
   });
 
+  it("confirms, deletes, and reloads a message", async () => {
+    const fetchImpl: typeof fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({
+        messages: [],
+        limit: 100,
+        requested_message_found: null,
+      }));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const tab = document.createElement("rn-messages-tab");
+    document.body.append(tab);
+    tab.api = new ApiClient({ fetchImpl });
+    tab.setUser({
+      email: "runner@example.com",
+      is_guest: false,
+      guest_retention_hours: null,
+      can_change_imap_password: true,
+    });
+    tab.render([{
+      id: "mailbox/key",
+      subject: "Morning run",
+      date: null,
+      from: "",
+      preview: "",
+      audio: [],
+    }]);
+
+    tab.querySelector<HTMLButtonElement>(".delete-message")?.click();
+
+    await vi.waitFor(() => {
+      expect(fetchImpl).toHaveBeenNthCalledWith(
+        1,
+        "/api/messages/mailbox%2Fkey",
+        { method: "DELETE" },
+      );
+      expect(tab.querySelector(".message")).toBeNull();
+    });
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Permanently delete “Morning run”?",
+    );
+  });
+
+  it("does not offer message deletion to guest users", () => {
+    const tab = document.createElement("rn-messages-tab");
+    document.body.append(tab);
+    tab.setUser({
+      email: "guest@example.com",
+      is_guest: true,
+      guest_retention_hours: 24,
+      can_change_imap_password: false,
+    });
+
+    tab.render([{
+      id: "shared-message",
+      subject: "Shared voice note",
+      date: null,
+      from: "",
+      preview: "",
+      audio: [],
+    }]);
+
+    expect(tab.querySelector(".delete-message")).toBeNull();
+  });
+
   it("shows the list and an informational notice when a linked message is unavailable", async () => {
     const fetchImpl: typeof fetch = vi.fn(async (): Promise<Response> => (
       Response.json({

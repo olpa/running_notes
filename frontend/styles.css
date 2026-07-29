@@ -353,8 +353,22 @@ p { margin: 0; }
 .message.linked-message { border-color: var(--accent); box-shadow: 0 0 0 2px rgb(31 111 235 / 15%); }
 .linked-message-marker { color: var(--accent-dark); font-size: 0.8rem; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
 .message-header { display: flex; gap: 8px; justify-content: space-between; }
+.message-header-actions { align-items: center; display: flex; gap: 8px; }
 .message-subject { font-weight: 700; }
 .message-subject a { color: inherit; }
+.delete-message {
+  align-items: center;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.35rem;
+}
+.delete-message:hover:not(:disabled) { background: #fff0f0; color: var(--danger); }
+.delete-message:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+.delete-message svg { fill: none; height: 1.1rem; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 1.1rem; }
 .message-meta, .message-preview { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
 .message rn-playback { display: block; margin-top: 10px; }
 .playback-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }

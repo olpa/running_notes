@@ -1,6 +1,6 @@
 import template from "./messages-tab.html?raw";
 import { ApiClient, ApiError } from "../../api.js";
-import type { MessageSummary } from "../../contracts.js";
+import type { MessageSummary, User } from "../../contracts.js";
 import { errorMessage, queryRequired, showStatus } from "../../dom.js";
 import { pathForMessage } from "../../router.js";
 import "../playback-widget/playback-widget.js";
@@ -15,6 +15,7 @@ export class MessagesTab extends HTMLElement {
   private requestId: symbol | null = null;
   private requestedMessageKey: string | null = null;
   private messageRequested = false;
+  private canDeleteMessages = false;
 
   connectedCallback(): void {
     if (this.initialized) return;
@@ -30,6 +31,10 @@ export class MessagesTab extends HTMLElement {
 
   set api(value: ApiClient) {
     this.apiClient = value;
+  }
+
+  setUser(user: User): void {
+    this.canDeleteMessages = !user.is_guest;
   }
 
   setRequestedMessage(messageKey: string | null, requested: boolean): void {
@@ -93,13 +98,32 @@ export class MessagesTab extends HTMLElement {
       const date = document.createElement("time");
       date.className = "muted";
       date.textContent = message.date ? new Date(message.date).toLocaleString() : "";
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "delete-message";
+      deleteButton.type = "button";
+      deleteButton.title = "Delete message";
+      deleteButton.setAttribute("aria-label", `Delete ${message.subject}`);
+      deleteButton.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"></path>
+        </svg>
+      `;
+      const headerActions = document.createElement("div");
+      headerActions.className = "message-header-actions";
+      headerActions.append(date);
+      if (this.canDeleteMessages) {
+        deleteButton.addEventListener("click", () => {
+          void this.deleteMessage(message, deleteButton);
+        });
+        headerActions.append(deleteButton);
+      }
       const from = document.createElement("div");
       from.className = "message-meta";
       from.textContent = message.from;
       const preview = document.createElement("div");
       preview.className = "message-preview";
       preview.textContent = message.preview;
-      header.append(subject, date);
+      header.append(subject, headerActions);
       article.append(header, from, preview);
       article.dataset.messageId = message.id;
       if (message.id === selectedMessageKey) {
@@ -128,8 +152,34 @@ export class MessagesTab extends HTMLElement {
     selected.scrollIntoView?.({ behavior: "smooth", block: "center" });
   }
 
+  private async deleteMessage(
+    message: MessageSummary,
+    button: HTMLButtonElement,
+  ): Promise<void> {
+    if (!this.apiClient) return;
+    if (!window.confirm(`Permanently delete “${message.subject}”?`)) return;
+    button.disabled = true;
+    showStatus(this.status, "Deleting...", "busy");
+    try {
+      await this.apiClient.deleteMessage(message.id);
+      if (this.messageRequested && this.requestedMessageKey === message.id) {
+        this.dispatchEvent(new CustomEvent<string>("navigate-requested", {
+          bubbles: true,
+          detail: "/messages",
+        }));
+      } else {
+        await this.load();
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) return;
+      button.disabled = false;
+      showStatus(this.status, `Delete failed: ${errorMessage(error)}`, "error");
+    }
+  }
+
   reset(): void {
     this.requestId = null;
+    this.canDeleteMessages = false;
     this.querySelectorAll<PlaybackWidget>("rn-playback").forEach((playback) => playback.reset());
     this.list.replaceChildren();
     this.notice.hidden = true;
