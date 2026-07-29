@@ -85,6 +85,12 @@ describe("rn-messages-tab", () => {
     const tab = document.createElement("rn-messages-tab");
     document.body.append(tab);
     tab.api = new ApiClient({ fetchImpl });
+    tab.setUser({
+      email: "runner@example.com",
+      is_guest: false,
+      guest_retention_hours: null,
+      can_change_imap_password: true,
+    });
     tab.render([{
       id: "mailbox/key",
       subject: "Morning run",
@@ -107,6 +113,28 @@ describe("rn-messages-tab", () => {
     expect(window.confirm).toHaveBeenCalledWith(
       "Permanently delete “Morning run”?",
     );
+  });
+
+  it("does not offer message deletion to guest users", () => {
+    const tab = document.createElement("rn-messages-tab");
+    document.body.append(tab);
+    tab.setUser({
+      email: "guest@example.com",
+      is_guest: true,
+      guest_retention_hours: 24,
+      can_change_imap_password: false,
+    });
+
+    tab.render([{
+      id: "shared-message",
+      subject: "Shared voice note",
+      date: null,
+      from: "",
+      preview: "",
+      audio: [],
+    }]);
+
+    expect(tab.querySelector(".delete-message")).toBeNull();
   });
 
   it("shows the list and an informational notice when a linked message is unavailable", async () => {

@@ -749,6 +749,11 @@ def message_audio(message_key: str, audio_index: int, request: Request):
 @app.delete("/api/messages/{message_key}", status_code=204)
 def delete_message(message_key: str, request: Request):
     user = current_active_user(request)
+    if user["is_guest"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Guest users cannot delete messages",
+        )
     try:
         reference = MailReference.from_key(message_key)
     except ValueError as exc:

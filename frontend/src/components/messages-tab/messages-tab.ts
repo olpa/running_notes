@@ -1,6 +1,6 @@
 import template from "./messages-tab.html?raw";
 import { ApiClient, ApiError } from "../../api.js";
-import type { MessageSummary } from "../../contracts.js";
+import type { MessageSummary, User } from "../../contracts.js";
 import { errorMessage, queryRequired, showStatus } from "../../dom.js";
 import { pathForMessage } from "../../router.js";
 import "../playback-widget/playback-widget.js";
@@ -15,6 +15,7 @@ export class MessagesTab extends HTMLElement {
   private requestId: symbol | null = null;
   private requestedMessageKey: string | null = null;
   private messageRequested = false;
+  private canDeleteMessages = false;
 
   connectedCallback(): void {
     if (this.initialized) return;
@@ -30,6 +31,10 @@ export class MessagesTab extends HTMLElement {
 
   set api(value: ApiClient) {
     this.apiClient = value;
+  }
+
+  setUser(user: User): void {
+    this.canDeleteMessages = !user.is_guest;
   }
 
   setRequestedMessage(messageKey: string | null, requested: boolean): void {
@@ -103,12 +108,15 @@ export class MessagesTab extends HTMLElement {
           <path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"></path>
         </svg>
       `;
-      deleteButton.addEventListener("click", () => {
-        void this.deleteMessage(message, deleteButton);
-      });
       const headerActions = document.createElement("div");
       headerActions.className = "message-header-actions";
-      headerActions.append(date, deleteButton);
+      headerActions.append(date);
+      if (this.canDeleteMessages) {
+        deleteButton.addEventListener("click", () => {
+          void this.deleteMessage(message, deleteButton);
+        });
+        headerActions.append(deleteButton);
+      }
       const from = document.createElement("div");
       from.className = "message-meta";
       from.textContent = message.from;
@@ -171,6 +179,7 @@ export class MessagesTab extends HTMLElement {
 
   reset(): void {
     this.requestId = null;
+    this.canDeleteMessages = false;
     this.querySelectorAll<PlaybackWidget>("rn-playback").forEach((playback) => playback.reset());
     this.list.replaceChildren();
     this.notice.hidden = true;

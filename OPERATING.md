@@ -331,7 +331,8 @@ Callback endpoints configured with providers:
 
 The authenticated portal includes a Messages page. It shows the newest messages
 in the user's INBOX, plays audio MIME attachments, and allows permanent deletion
-after confirmation without exposing Maildir paths.
+after confirmation without exposing Maildir paths. Deletion is unavailable to
+guest users because the public guest mailbox is shared.
 
 WEB_MESSAGE_LIMIT is read when the backend starts, defaults to 100, and must be
 a positive integer. It is an administrator limit and cannot be overridden by a

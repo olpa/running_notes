@@ -78,6 +78,7 @@ function showPortal(user: User): void {
     elements.guestRetentionHours.textContent = String(user.guest_retention_hours);
   }
   elements.recorder.setEnabled(true);
+  elements.messages.setUser(user);
   elements.imap.setUser(user);
   elements.account.setUser(user);
   elements.imap.load();
