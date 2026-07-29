@@ -4,6 +4,7 @@ import { queryRequired } from "../../dom.js";
 export class PlaybackWidget extends HTMLElement {
   private initialized = false;
   private audio: HTMLAudioElement | null = null;
+  private download: HTMLAnchorElement | null = null;
   private status: HTMLElement | null = null;
 
   connectedCallback(): void {
@@ -11,6 +12,7 @@ export class PlaybackWidget extends HTMLElement {
     this.initialized = true;
     this.innerHTML = template;
     this.audio = queryRequired<HTMLAudioElement>(this, "audio");
+    this.download = queryRequired<HTMLAnchorElement>(this, ".download-audio");
     this.status = queryRequired<HTMLElement>(this, ".playback-status");
     const status = this.status;
     this.audio.addEventListener("error", () => {
@@ -21,7 +23,7 @@ export class PlaybackWidget extends HTMLElement {
   }
 
   static get observedAttributes(): string[] {
-    return ["src"];
+    return ["src", "filename"];
   }
 
   attributeChangedCallback(): void {
@@ -32,7 +34,12 @@ export class PlaybackWidget extends HTMLElement {
     if (!this.audio || !this.status) return;
     this.status.textContent = "";
     this.status.classList.remove("error");
-    this.audio.src = this.getAttribute("src") || "";
+    const source = this.getAttribute("src") || "";
+    this.audio.src = source;
+    if (this.download) {
+      this.download.href = source;
+      this.download.download = this.getAttribute("filename") || "audio";
+    }
   }
 
   reset(): void {
