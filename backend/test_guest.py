@@ -5,7 +5,12 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from guest import expired_guest_note_directories
+from guest import (
+    GuestUploadBusy,
+    GuestUploadLimiter,
+    GuestUploadRateLimited,
+    expired_guest_note_directories,
+)
 
 
 class GuestRetentionTests(unittest.TestCase):
@@ -61,6 +66,46 @@ class GuestRetentionTests(unittest.TestCase):
     def _set_age(self, note_dir: Path, hours: int) -> None:
         timestamp = (self.now - timedelta(hours=hours)).timestamp()
         os.utime(note_dir, (timestamp, timestamp))
+
+
+class GuestUploadLimiterTests(unittest.TestCase):
+    def setUp(self):
+        self.limiter = GuestUploadLimiter(
+            per_session_limit=2,
+            global_limit=3,
+            window_seconds=60,
+            concurrent_limit=2,
+        )
+
+    def test_limits_each_session_within_rolling_window(self):
+        self.limiter.acquire("session-a", 0)
+        self.limiter.release()
+        self.limiter.acquire("session-a", 1)
+        self.limiter.release()
+
+        with self.assertRaises(GuestUploadRateLimited):
+            self.limiter.acquire("session-a", 2)
+
+        self.limiter.acquire("session-a", 61)
+        self.limiter.release()
+
+    def test_limits_all_guest_sessions_together(self):
+        for index, session in enumerate(("a", "b", "c")):
+            self.limiter.acquire(session, index)
+            self.limiter.release()
+
+        with self.assertRaises(GuestUploadRateLimited):
+            self.limiter.acquire("d", 3)
+
+    def test_limits_concurrent_guest_processing(self):
+        self.limiter.acquire("a", 0)
+        self.limiter.acquire("b", 0)
+
+        with self.assertRaises(GuestUploadBusy):
+            self.limiter.acquire("c", 0)
+
+        self.limiter.release()
+        self.limiter.acquire("c", 1)
 
 
 if __name__ == "__main__":
