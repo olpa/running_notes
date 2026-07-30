@@ -16,6 +16,11 @@ const elements = {
   portal: queryRequired<HTMLElement>(document, "#portal"),
   loginStatus: queryRequired<HTMLElement>(document, "#loginStatus"),
   signedInEmail: queryRequired<HTMLElement>(document, "#signedInEmail"),
+  guestLogin: queryRequired<HTMLButtonElement>(document, "#guestLogin"),
+  guestPrivacyAcknowledged: queryRequired<HTMLInputElement>(
+    document,
+    "#guestPrivacyAcknowledged",
+  ),
   guestPrivacyWarning: queryRequired<HTMLElement>(document, "#guestPrivacyWarning"),
   guestRetentionHours: queryRequired<HTMLElement>(document, "#guestRetentionHours"),
   recorder: queryRequired<RecordTab>(document, "rn-record-tab"),
@@ -55,8 +60,14 @@ queryRequired<HTMLButtonElement>(document, "#googleLogin").addEventListener("cli
 queryRequired<HTMLButtonElement>(document, "#microsoftLogin").addEventListener("click", () => {
   startOauthLogin("microsoft");
 });
-queryRequired<HTMLButtonElement>(document, "#guestLogin").addEventListener("click", () => {
+elements.guestPrivacyAcknowledged.addEventListener("change", () => {
+  elements.guestLogin.disabled = !elements.guestPrivacyAcknowledged.checked;
+});
+elements.guestLogin.addEventListener("click", () => {
   void loginAsGuest();
+});
+queryRequired<HTMLButtonElement>(document, "#guestPrivateLogin").addEventListener("click", () => {
+  void leaveGuestMode();
 });
 queryRequired<HTMLButtonElement>(document, "#topLogout").addEventListener("click", () => {
   void logout();
@@ -72,7 +83,9 @@ window.addEventListener("popstate", applyCurrentRoute);
 function showPortal(user: User): void {
   elements.login.classList.add("hidden");
   elements.portal.classList.remove("hidden");
-  elements.signedInEmail.textContent = user.email;
+  elements.signedInEmail.textContent = user.is_guest
+    ? `Public guest mode · ${user.email}`
+    : user.email;
   elements.guestPrivacyWarning.classList.toggle("hidden", !user.is_guest);
   if (user.is_guest) {
     elements.guestRetentionHours.textContent = String(user.guest_retention_hours);
@@ -109,6 +122,8 @@ function showLoggedOut(message: string): void {
   elements.portal.classList.add("hidden");
   elements.login.classList.remove("hidden");
   elements.signedInEmail.textContent = "";
+  elements.guestPrivacyAcknowledged.checked = false;
+  elements.guestLogin.disabled = true;
   elements.guestPrivacyWarning.classList.add("hidden");
   elements.recorder.reset();
   elements.messages.reset();
@@ -140,6 +155,12 @@ async function logout(): Promise<void> {
     loggedOutMessage = "Signed out";
     session.clear();
   }
+}
+
+async function leaveGuestMode(): Promise<void> {
+  await logout();
+  loggedOutMessage = "Sign in to open a private mailbox.";
+  showStatus(elements.loginStatus, loggedOutMessage);
 }
 
 async function loadSession(): Promise<void> {

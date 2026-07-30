@@ -16,11 +16,15 @@
         <li>Process it using familiar inbox tools.</li>
       </ol>
       <p class="login-intro">The current version stores recordings as they are; it does not transcribe or summarize them.</p>
-      <p class="login-note"><strong>Guest privacy:</strong> The guest mailbox and its recordings are public. Do not use it for private or sensitive information. Guest recordings expire automatically after 24 hours.</p>
+      <p class="login-note"><strong>Guest privacy:</strong> The guest mailbox and its recordings are public. Do not use it for private or sensitive information. Guest recordings are scheduled for deletion after 24 hours; hourly cleanup can take approximately one additional hour.</p>
       <div class="login-actions">
         <button class="secondary" id="googleLogin" type="button">Sign in with Google</button>
         <button class="secondary" id="microsoftLogin" type="button">Sign in with Microsoft</button>
-        <button class="primary" id="guestLogin" type="button">Try without registering</button>
+        <label class="guest-acknowledgement">
+          <input id="guestPrivacyAcknowledged" type="checkbox">
+          I understand that guest recordings are public.
+        </label>
+        <button class="primary" id="guestLogin" disabled type="button">Enter public guest mode</button>
       </div>
       <div id="loginStatus" class="status"></div>
     </section>
@@ -36,7 +40,8 @@
 
       <aside id="guestPrivacyWarning" class="privacy-warning hidden" role="alert">
         <strong>Guest recordings are public</strong>
-        Anyone on the internet can use the shared guest mailbox credentials to access recordings made here. Guest recordings are automatically deleted after <span id="guestRetentionHours">24</span> hours. Do not record private, personal, or sensitive information. Sign in with your own account for a private mailbox.
+        Anyone on the internet can use the shared guest mailbox credentials to access recordings made here. Recordings are scheduled for deletion after <span id="guestRetentionHours">24</span> hours; hourly cleanup can take approximately one additional hour. Deletion cannot revoke copies that other people already downloaded, cached, or forwarded. Do not record private, personal, or sensitive information.
+        <button class="secondary guest-private-login" id="guestPrivateLogin" type="button">Sign in for a private mailbox</button>
       </aside>
 
       <div class="layout">

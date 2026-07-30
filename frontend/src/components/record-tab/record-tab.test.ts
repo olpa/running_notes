@@ -51,6 +51,7 @@ describe("rn-record-tab", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("uploads the first recording after reset and re-enable", async () => {
@@ -79,7 +80,9 @@ describe("rn-record-tab", () => {
         "/api/record",
         expect.objectContaining({ method: "POST" }),
       );
-      expect(tab.querySelector(".status")?.textContent).toBe("Uploaded");
+      expect(tab.querySelector(".status")?.textContent).toBe(
+        "Uploaded: Voice note",
+      );
     });
   });
 
@@ -117,6 +120,20 @@ describe("rn-record-tab", () => {
     expect(fetchImpl).toHaveBeenCalledWith(
       "/api/record",
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("disables recording when the browser cannot produce WebM audio", () => {
+    vi.spyOn(FakeMediaRecorder, "isTypeSupported").mockReturnValue(false);
+    const tab = document.createElement("rn-record-tab");
+    document.body.append(tab);
+    tab.api = new ApiClient({ fetchImpl: vi.fn() });
+
+    tab.setEnabled(true);
+
+    expect(tab.querySelector<HTMLButtonElement>(".record-button")?.disabled).toBe(true);
+    expect(tab.querySelector(".status")?.textContent).toContain(
+      "does not support WebM audio recording",
     );
   });
 

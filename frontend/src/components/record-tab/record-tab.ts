@@ -21,6 +21,7 @@ export class RecordTab extends HTMLElement {
   private progressBar!: HTMLProgressElement;
   private recordingTime!: HTMLElement;
   private enabled = false;
+  private recordingMimeType: string | null = null;
   private recorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
   private lifecycleGeneration = 0;
@@ -65,8 +66,22 @@ export class RecordTab extends HTMLElement {
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    if (!enabled) this.reset();
-    else if (this.recorderState === "disabled") this.setState("idle");
+    if (!enabled) {
+      this.reset();
+      return;
+    }
+    this.recordingMimeType = this.supportedRecordingMimeType();
+    if (!this.recordingMimeType || !navigator.mediaDevices?.getUserMedia) {
+      this.enabled = false;
+      this.setState("disabled");
+      showStatus(
+        this.status,
+        "Recording is unavailable: this browser does not support WebM audio recording.",
+        "error",
+      );
+      return;
+    }
+    if (this.recorderState === "disabled") this.setState("idle");
   }
 
   activate(): void {}
@@ -117,9 +132,8 @@ export class RecordTab extends HTMLElement {
         return;
       }
       const chunks: Blob[] = [];
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
+      const mimeType = this.recordingMimeType;
+      if (!mimeType) throw new Error("WebM audio recording is unsupported");
       const recorder = new MediaRecorder(stream, { mimeType });
       this.stream = stream;
       this.recorder = recorder;
@@ -177,10 +191,10 @@ export class RecordTab extends HTMLElement {
       "audio.webm",
     );
     try {
-      await apiClient.uploadRecording(form);
+      const note = await apiClient.uploadRecording(form);
       if (this.enabled) {
         this.setState("idle");
-        showStatus(this.status, "Uploaded", "success");
+        showStatus(this.status, `Uploaded: ${note.subject}`, "success");
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) return;
@@ -281,9 +295,19 @@ export class RecordTab extends HTMLElement {
     stream.getTracks().forEach((track) => track.stop());
   }
 
+  private supportedRecordingMimeType(): string | null {
+    if (typeof MediaRecorder === "undefined" ||
+        typeof MediaRecorder.isTypeSupported !== "function") return null;
+    for (const mimeType of ["audio/webm;codecs=opus", "audio/webm"]) {
+      if (MediaRecorder.isTypeSupported(mimeType)) return mimeType;
+    }
+    return null;
+  }
+
   reset(): void {
     this.lifecycleGeneration += 1;
     this.enabled = false;
+    this.recordingMimeType = null;
     if (this.recorder?.state === "recording") this.stopRecording();
     else this.stopTracks();
     this.setState("disabled");

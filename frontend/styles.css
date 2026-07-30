@@ -114,6 +114,17 @@ p { margin: 0; }
   margin-top: 20px;
 }
 
+.guest-acknowledgement {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.guest-acknowledgement input {
+  margin-top: 0.2rem;
+}
+
 .layout {
   display: grid;
   gap: 18px;
@@ -195,6 +206,11 @@ p { margin: 0; }
   display: block;
   font-size: 1.1rem;
   margin-bottom: 4px;
+}
+
+.guest-private-login {
+  display: block;
+  margin-top: 12px;
 }
 
 .recording-actions {
