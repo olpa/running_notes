@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from email.mime.audio import MIMEAudio
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import format_datetime
+from email.utils import format_datetime, formataddr
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -22,7 +22,8 @@ from audio import (
     AudioConversionError,
     AudioTooLongError,
     InvalidAudioRange,
-    convert_webm_to_mp3,
+    convert_webm_to_mp3_with_duration,
+    format_audio_duration,
     parse_audio_byte_range,
 )
 from autoconfig import (
@@ -85,15 +86,17 @@ GUEST_RETENTION_CHECK_SECONDS = 60 * 60
 ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
-MAIL_FROM = "voiceinbox@voiceinbox.local"
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
+MAIL_DOMAIN = PUBLIC_IMAP_HOST or urlparse(PUBLIC_BASE_URL).hostname or "localhost"
+MAIL_FROM = f"no-reply@{MAIL_DOMAIN}"
+MAIL_FROM_HEADER = formataddr(("Running Notes", MAIL_FROM))
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
 PUBLIC_SMTP_PORT = int(os.environ.get("PUBLIC_SMTP_PORT", "587"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
 GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "").strip()
-    or "public@" + (PUBLIC_IMAP_HOST or urlparse(PUBLIC_BASE_URL).hostname or "localhost")
+    or f"public@{MAIL_DOMAIN}"
 )
 GUEST_USER_PASSWORD = os.environ.get("GUEST_USER_PASSWORD", "")
 
@@ -201,16 +204,28 @@ def current_active_user(request: Request) -> dict:
 
 
 def deliver_via_lmtp(
-    recipient: str, note_id: str, created_at: datetime, audio_bytes: bytes
+    recipient: str,
+    note_id: str,
+    created_at: datetime,
+    audio_bytes: bytes,
+    duration: str,
 ):
     msg = MIMEMultipart()
-    msg["From"] = MAIL_FROM
+    msg["From"] = MAIL_FROM_HEADER
     msg["To"] = recipient
-    msg["Subject"] = f"Voice note {created_at.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    recorded_at = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    msg["Subject"] = f"Voice note ({duration}) {recorded_at}"
     msg["Message-ID"] = f"<note-{note_id}-audio@voiceinbox.local>"
     msg["Date"] = format_datetime(created_at)
 
-    body = MIMEText("Voice note recorded via running-notes.", "plain")
+    body = MIMEText(
+        "Voice note recorded via running-notes.\n\n"
+        f"Recorded: {recorded_at}\n"
+        f"Duration: {duration}\n\n"
+        "This is an automated message. Please do not reply; "
+        "this address is not monitored.\n",
+        "plain",
+    )
     msg.attach(body)
 
     attachment = MIMEAudio(audio_bytes, "mpeg")
@@ -603,8 +618,8 @@ async def record(request: Request, file: UploadFile):
 
     uploaded_audio_bytes = await read_limited_upload(file)
     try:
-        audio_bytes = await asyncio.to_thread(
-            convert_webm_to_mp3, uploaded_audio_bytes
+        audio_bytes, duration_seconds = await asyncio.to_thread(
+            convert_webm_to_mp3_with_duration, uploaded_audio_bytes
         )
     except AudioTooLongError as exc:
         logger.info(
@@ -629,7 +644,8 @@ async def record(request: Request, file: UploadFile):
     audio_path.write_bytes(audio_bytes)
 
     created_at_str = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
-    subject = f"Voice note {created_at_str}"
+    duration = format_audio_duration(duration_seconds)
+    subject = f"Voice note ({duration}) {created_at_str}"
     metadata = {
         "id": note_id,
         "created_at": created_at_str,
@@ -649,7 +665,9 @@ async def record(request: Request, file: UploadFile):
         media_type,
     )
 
-    deliver_via_lmtp(user["imap_username"], note_id, created_at, audio_bytes)
+    deliver_via_lmtp(
+        user["imap_username"], note_id, created_at, audio_bytes, duration
+    )
 
     return metadata
 
