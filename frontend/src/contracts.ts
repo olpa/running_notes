@@ -57,7 +57,7 @@ export interface NoteMetadata {
   id: string;
   created_at: string;
   subject: string;
-  user_id: number;
+  user_id: string;
 }
 
 export type SessionState =
