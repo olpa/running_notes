@@ -6,11 +6,14 @@ type RecorderState = "disabled" | "idle" | "requesting" | "recording" | "uploadi
 
 const MAX_RECORDING_SECONDS = 30;
 const RECORDING_PROGRESS_INTERVAL_MS = 100;
+const CANCEL_CONFIRMATION_DELAY_MS = 600;
+const CANCEL_CONFIRMATION_WINDOW_MS = 4_000;
 
 export class RecordTab extends HTMLElement {
   private initialized = false;
   private apiClient: ApiClient | null = null;
   private button!: HTMLButtonElement;
+  private cancelButton!: HTMLButtonElement;
   private status!: HTMLElement;
   private progressContainer!: HTMLElement;
   private progressBar!: HTMLProgressElement;
@@ -22,18 +25,26 @@ export class RecordTab extends HTMLElement {
   private recorderState: RecorderState = "disabled";
   private recordingStartedAt = 0;
   private progressInterval: number | null = null;
+  private cancelEnableTimeout: number | null = null;
+  private cancelResetTimeout: number | null = null;
+  private cancelArmed = false;
+  private discardedRecorders = new WeakSet<MediaRecorder>();
 
   connectedCallback(): void {
     if (this.initialized) return;
     this.initialized = true;
     this.innerHTML = template;
     this.button = queryRequired<HTMLButtonElement>(this, ".record-button");
+    this.cancelButton = queryRequired<HTMLButtonElement>(this, ".cancel-recording");
     this.status = queryRequired<HTMLElement>(this, ".status");
     this.progressContainer = queryRequired<HTMLElement>(this, ".recording-progress");
     this.progressBar = queryRequired<HTMLProgressElement>(this, ".recording-progress-bar");
     this.recordingTime = queryRequired<HTMLElement>(this, ".recording-time");
     this.button.addEventListener("click", () => {
       void this.toggleRecording();
+    });
+    this.cancelButton.addEventListener("click", () => {
+      this.requestCancel();
     });
     this.setState("disabled");
   }
@@ -57,9 +68,12 @@ export class RecordTab extends HTMLElement {
   private setState(state: RecorderState, message?: string): void {
     this.recorderState = state;
     const recording = state === "recording";
-    this.button.textContent = recording ? "Stop" : "Record";
+    if (!recording) this.resetCancelConfirmation();
+    this.button.textContent = recording ? "Stop and save" : "Record";
     this.button.classList.toggle("recording", recording);
     this.button.disabled = state === "disabled" || state === "requesting" || state === "uploading";
+    this.cancelButton.hidden = !recording;
+    this.cancelButton.disabled = !recording;
     this.progressContainer.hidden = !recording;
     const defaults: Record<RecorderState, string> = {
       disabled: "Ready",
@@ -127,6 +141,14 @@ export class RecordTab extends HTMLElement {
     this.stopStream(recording.stream);
     if (this.stream === recording.stream) this.stream = null;
     if (this.recorder === recording.recorder) this.recorder = null;
+    if (this.discardedRecorders.has(recording.recorder)) {
+      this.discardedRecorders.delete(recording.recorder);
+      this.setState(this.enabled ? "idle" : "disabled");
+      if (this.enabled) {
+        showStatus(this.status, "Recording cancelled. Nothing was saved.");
+      }
+      return;
+    }
     if (!this.enabled || recording.generation !== this.lifecycleGeneration) {
       this.setState(this.enabled ? "idle" : "disabled");
       return;
@@ -178,6 +200,47 @@ export class RecordTab extends HTMLElement {
     if (this.recorder?.state !== "recording") return;
     this.stopRecordingProgress();
     this.recorder.stop();
+  }
+
+  private requestCancel(): void {
+    const recorder = this.recorder;
+    if (!recorder || recorder.state !== "recording") return;
+    if (this.cancelArmed) {
+      this.discardedRecorders.add(recorder);
+      this.resetCancelConfirmation();
+      this.stopRecording();
+      return;
+    }
+
+    this.cancelArmed = true;
+    this.cancelButton.textContent = "Discard recording?";
+    this.cancelButton.disabled = true;
+    showStatus(this.status, "This recording will not be saved.", "error");
+    this.cancelEnableTimeout = window.setTimeout(() => {
+      this.cancelEnableTimeout = null;
+      if (this.cancelArmed && this.recorder?.state === "recording") {
+        this.cancelButton.disabled = false;
+      }
+    }, CANCEL_CONFIRMATION_DELAY_MS);
+    this.cancelResetTimeout = window.setTimeout(() => {
+      this.resetCancelConfirmation();
+      if (this.recorder?.state === "recording") {
+        showStatus(this.status, "Recording...", "busy");
+      }
+    }, CANCEL_CONFIRMATION_DELAY_MS + CANCEL_CONFIRMATION_WINDOW_MS);
+  }
+
+  private resetCancelConfirmation(): void {
+    if (this.cancelEnableTimeout !== null) {
+      window.clearTimeout(this.cancelEnableTimeout);
+      this.cancelEnableTimeout = null;
+    }
+    if (this.cancelResetTimeout !== null) {
+      window.clearTimeout(this.cancelResetTimeout);
+      this.cancelResetTimeout = null;
+    }
+    this.cancelArmed = false;
+    this.cancelButton.textContent = "Cancel recording";
   }
 
   private stopRecordingProgress(): void {

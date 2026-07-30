@@ -70,7 +70,7 @@ describe("rn-record-tab", () => {
     tab.setEnabled(true);
     tab.querySelector<HTMLButtonElement>(".record-button")?.click();
     await vi.waitFor(() => {
-      expect(tab.querySelector(".record-button")?.textContent).toBe("Stop");
+      expect(tab.querySelector(".record-button")?.textContent).toBe("Stop and save");
     });
     tab.querySelector<HTMLButtonElement>(".record-button")?.click();
 
@@ -118,5 +118,67 @@ describe("rn-record-tab", () => {
       "/api/record",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("requires a delayed confirmation before discarding a recording", async () => {
+    vi.useFakeTimers();
+    const fetchImpl: typeof fetch = vi.fn();
+    const tab = document.createElement("rn-record-tab");
+    document.body.append(tab);
+    tab.api = new ApiClient({ fetchImpl });
+    tab.setEnabled(true);
+
+    tab.querySelector<HTMLButtonElement>(".record-button")?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const cancel = tab.querySelector<HTMLButtonElement>(".cancel-recording");
+    expect(cancel?.hidden).toBe(false);
+    expect(tab.querySelector(".record-button")?.textContent).toBe("Stop and save");
+
+    cancel?.click();
+    expect(cancel?.textContent).toBe("Discard recording?");
+    expect(cancel?.disabled).toBe(true);
+    expect(tab.querySelector(".status")?.textContent).toBe(
+      "This recording will not be saved.",
+    );
+
+    vi.advanceTimersByTime(599);
+    expect(cancel?.disabled).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(cancel?.disabled).toBe(false);
+
+    cancel?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(FakeMediaRecorder.latest?.stopCalls).toHaveBeenCalledTimes(1);
+    expect(cancel?.hidden).toBe(true);
+    expect(tab.querySelector(".record-button")?.textContent).toBe("Record");
+    expect(tab.querySelector(".status")?.textContent).toBe(
+      "Recording cancelled. Nothing was saved.",
+    );
+  });
+
+  it("disarms cancellation when the confirmation window expires", async () => {
+    vi.useFakeTimers();
+    const tab = document.createElement("rn-record-tab");
+    document.body.append(tab);
+    tab.api = new ApiClient({ fetchImpl: vi.fn() });
+    tab.setEnabled(true);
+
+    tab.querySelector<HTMLButtonElement>(".record-button")?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    const cancel = tab.querySelector<HTMLButtonElement>(".cancel-recording");
+    cancel?.click();
+
+    vi.advanceTimersByTime(4_600);
+
+    expect(cancel?.textContent).toBe("Cancel recording");
+    expect(cancel?.disabled).toBe(false);
+    expect(tab.querySelector(".status")?.textContent).toBe("Recording...");
+    expect(FakeMediaRecorder.latest?.stopCalls).not.toHaveBeenCalled();
   });
 });

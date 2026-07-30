@@ -197,10 +197,17 @@ p { margin: 0; }
   margin-bottom: 4px;
 }
 
-.record-button {
+.recording-actions {
+  display: flex;
+  gap: 10px;
+  width: min(100%, 420px);
+}
+
+.record-button,
+.cancel-recording {
+  flex: 1;
   font-size: 1.15rem;
   min-height: 4rem;
-  width: min(100%, 320px);
 }
 
 .record-button.recording { background: var(--danger); }
