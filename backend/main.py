@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from email.mime.audio import MIMEAudio
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import format_datetime
+from email.utils import format_datetime, formataddr
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -86,15 +86,17 @@ GUEST_RETENTION_CHECK_SECONDS = 60 * 60
 ACCEPTED_AUDIO_TYPES = {"audio/webm"}
 LMTP_HOST = "dovecot"
 LMTP_PORT = 24
-MAIL_FROM = "voiceinbox@voiceinbox.local"
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 PUBLIC_IMAP_HOST = os.environ.get("PUBLIC_IMAP_HOST", "").strip()
+MAIL_DOMAIN = PUBLIC_IMAP_HOST or urlparse(PUBLIC_BASE_URL).hostname or "localhost"
+MAIL_FROM = f"no-reply@{MAIL_DOMAIN}"
+MAIL_FROM_HEADER = formataddr(("Running Notes", MAIL_FROM))
 PUBLIC_IMAP_PORT = int(os.environ.get("PUBLIC_IMAP_PORT", "993"))
 PUBLIC_SMTP_PORT = int(os.environ.get("PUBLIC_SMTP_PORT", "587"))
 PUBLIC_IMAP_SECURITY = os.environ.get("PUBLIC_IMAP_SECURITY", "TLS").strip() or "TLS"
 GUEST_USER_EMAIL = normalize_email(
     os.environ.get("GUEST_USER_EMAIL", "").strip()
-    or "public@" + (PUBLIC_IMAP_HOST or urlparse(PUBLIC_BASE_URL).hostname or "localhost")
+    or f"public@{MAIL_DOMAIN}"
 )
 GUEST_USER_PASSWORD = os.environ.get("GUEST_USER_PASSWORD", "")
 
@@ -209,7 +211,7 @@ def deliver_via_lmtp(
     duration: str,
 ):
     msg = MIMEMultipart()
-    msg["From"] = MAIL_FROM
+    msg["From"] = MAIL_FROM_HEADER
     msg["To"] = recipient
     recorded_at = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
     msg["Subject"] = f"Voice note ({duration}) {recorded_at}"
@@ -219,7 +221,9 @@ def deliver_via_lmtp(
     body = MIMEText(
         "Voice note recorded via running-notes.\n\n"
         f"Recorded: {recorded_at}\n"
-        f"Duration: {duration}\n",
+        f"Duration: {duration}\n\n"
+        "This is an automated message. Please do not reply; "
+        "this address is not monitored.\n",
         "plain",
     )
     msg.attach(body)
