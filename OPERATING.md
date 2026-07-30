@@ -121,21 +121,21 @@ The reset command prints the new plaintext password once and replaces the previo
 The backend automatically creates a fixed guest user on startup if it does not
 already exist. Its email defaults to `public@<PUBLIC_IMAP_HOST>` and can be changed
 with `GUEST_USER_EMAIL`. When `PUBLIC_IMAP_HOST` is unset, the hostname from
-`PUBLIC_BASE_URL` is used. `GUEST_USER_PASSWORD` is required and sets the initial
-IMAP password when that account is first created. The guest is an ordinary active user, except that its
-IMAP password cannot be regenerated through the web portal or API. Set or reset
-its password with the server admin CLI:
+`PUBLIC_BASE_URL` is used. `GUEST_USER_PASSWORD` is required and is the
+authoritative guest IMAP password. The backend reapplies it at startup so the
+password displayed in the portal always matches Dovecot authentication.
+The guest is an ordinary active user, except that its IMAP password cannot be
+regenerated through the web portal or API. Set or reset its password with the
+server admin CLI:
 
 ```
 docker compose run --rm backend python admin.py reset-imap-password public@notes-dev.handsfree.vc
 ```
 
-The automatic creation is idempotent and never reapplies
-`GUEST_USER_PASSWORD` or resets an existing password.
-The authenticated guest's IMAP setup page displays this configured password;
-ordinary users never receive it. If an administrator resets the guest password
-with the CLI, `GUEST_USER_PASSWORD` must be updated to the newly printed value
-before recreating the backend, so the displayed password remains accurate.
+The automatic creation is idempotent. The authenticated guest's IMAP setup page
+displays the configured password; ordinary users never receive it. A CLI reset
+is temporary for the guest account: update `GUEST_USER_PASSWORD` as well, or the
+configured value will be restored at the next backend startup.
 The guest mailbox is read-only over IMAP: clients can list mailboxes and read or
 download messages, but cannot change flags, append, move, expunge, create, or
 delete mail. Web recordings continue to arrive through LMTP. Other users retain
