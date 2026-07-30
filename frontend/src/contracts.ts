@@ -1,5 +1,6 @@
 export interface User {
   email: string;
+  auth_provider: string | null;
   is_guest: boolean;
   guest_retention_hours: number | null;
   can_change_imap_password: boolean;

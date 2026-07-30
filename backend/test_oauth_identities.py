@@ -54,6 +54,14 @@ class OAuthIdentityTests(unittest.TestCase):
         self.assertNotEqual(google["imap_username"], microsoft["imap_username"])
         self.assertRegex(google["imap_username"], r"^alice-\d{4}@notes\.example$")
         self.assertRegex(microsoft["imap_username"], r"^alice-\d{4}@notes\.example$")
+        self.assertEqual(
+            "google",
+            users.get_user_by_id(google["id"])["auth_provider"],
+        )
+        self.assertEqual(
+            "microsoft",
+            users.get_user_by_id(microsoft["id"])["auth_provider"],
+        )
 
         reset = users.reset_imap_password(google["imap_username"])
         self.assertEqual(google["id"], reset["id"])

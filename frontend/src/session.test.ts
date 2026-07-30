@@ -9,6 +9,7 @@ describe("session", () => {
 
     session.authenticate({
       email: "runner@example.com",
+      auth_provider: "google",
       is_guest: false,
       guest_retention_hours: null,
       can_change_imap_password: true,
@@ -19,6 +20,7 @@ describe("session", () => {
       status: "authenticated",
       user: {
         email: "runner@example.com",
+        auth_provider: "google",
         is_guest: false,
         guest_retention_hours: null,
         can_change_imap_password: true,
