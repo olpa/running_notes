@@ -202,6 +202,20 @@ def reset_imap_password(identifier: str) -> dict:
     }
 
 
+def set_imap_password(user_id: str, imap_password: str) -> None:
+    if not imap_password:
+        raise ValueError("IMAP password must not be empty")
+    imap_password_hash = _hash_imap_password(imap_password)
+    with connect() as conn:
+        cursor = conn.execute(
+            "UPDATE users SET imap_password_hash = ? WHERE id = ?",
+            (imap_password_hash, user_id),
+        )
+    if cursor.rowcount != 1:
+        raise UserNotFoundError(user_id)
+    logger.info("Configured IMAP password applied for user_id=%s", user_id)
+
+
 def get_user_by_id(user_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(

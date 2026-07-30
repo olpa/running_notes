@@ -34,6 +34,7 @@ from autoconfig import (
 )
 from application_routes import safe_application_return_path
 from database import initialize_database
+from guest import expired_guest_note_directories
 from mailbox import (
     DoveadmMailbox,
     MailboxError,
@@ -68,6 +69,7 @@ from users import (
     mark_user_as_guest,
     normalize_email,
     reset_imap_password,
+    set_imap_password,
 )
 
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
@@ -151,12 +153,13 @@ async def shutdown():
 
 
 def ensure_guest_user() -> None:
+    if not GUEST_USER_PASSWORD:
+        raise RuntimeError("GUEST_USER_PASSWORD is required")
+
     guest = get_guest_user()
     if guest is not None:
+        set_imap_password(guest["id"], GUEST_USER_PASSWORD)
         return
-
-    if not GUEST_USER_PASSWORD:
-        raise RuntimeError("GUEST_USER_PASSWORD is required to create the guest user")
 
     try:
         user = create_user(GUEST_USER_EMAIL, imap_password=GUEST_USER_PASSWORD)
@@ -165,6 +168,7 @@ def ensure_guest_user() -> None:
         guest = get_guest_user()
         if guest is None:
             raise
+        set_imap_password(guest["id"], GUEST_USER_PASSWORD)
         return
     mark_user_as_guest(user["id"])
     logger.info(
@@ -339,23 +343,8 @@ def cleanup_expired_guest_recordings(now: datetime | None = None) -> None:
     cutoff = (now or datetime.now(timezone.utc)) - timedelta(
         hours=GUEST_RETENTION_HOURS
     )
-    expired_notes = {}
     notes_dir = user_notes_dir(guest["id"])
-    if notes_dir.exists():
-        for note_dir in notes_dir.iterdir():
-            if not note_dir.is_dir():
-                continue
-            try:
-                metadata = json.loads((note_dir / "metadata.json").read_text())
-                created_at = datetime.fromisoformat(
-                    metadata["created_at"].replace("Z", "+00:00")
-                )
-                note_id = metadata["id"]
-            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
-                logger.warning("Ignoring invalid guest note during retention: %s", note_dir)
-                continue
-            if created_at <= cutoff:
-                expired_notes[note_id] = note_dir
+    expired_notes = expired_guest_note_directories(notes_dir, cutoff)
 
     if expired_notes:
         remove_guest_maildir_messages(guest["id"], set(expired_notes))
