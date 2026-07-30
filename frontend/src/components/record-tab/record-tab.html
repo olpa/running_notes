@@ -1,6 +1,16 @@
 <h2>Record note</h2>
 <p class="recording-hint" id="recording-limit">Recordings are limited to 30 seconds.</p>
-<button class="primary record-button" aria-describedby="recording-limit" disabled type="button">Record</button>
+<div class="recording-actions">
+  <button class="primary record-button" aria-describedby="recording-limit" disabled type="button">Record</button>
+  <button class="danger cancel-recording" disabled hidden type="button">Cancel recording</button>
+</div>
+<div class="cancel-confirmation" aria-live="polite" hidden>
+  <p>This recording will not be saved.</p>
+  <div class="cancel-confirmation-actions">
+    <button class="secondary continue-recording" type="button">Continue recording</button>
+    <button class="danger discard-recording" disabled type="button">Discard recording</button>
+  </div>
+</div>
 <div class="recording-progress" hidden>
   <div class="recording-time" aria-live="off">0:00 / 0:30</div>
   <progress class="recording-progress-bar" aria-label="Recording duration" max="30" value="0">0 of 30 seconds</progress>
