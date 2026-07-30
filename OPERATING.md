@@ -155,6 +155,15 @@ to `24`; an hourly backend task removes expired guest source recordings and the
 corresponding messages from the guest Maildir. Registered-user data is not
 subject to this retention task.
 
+Guest uploads have additional abuse controls. By default, each guest browser
+session may start 10 uploads per 10-minute window, all guest sessions together
+may start 60, and at most two guest uploads may be processed concurrently.
+Guest uploads are capped at 2 MiB, independently of the ordinary 25 MiB upload
+limit. Configure these bounds with `MAX_GUEST_UPLOAD_BYTES`,
+`GUEST_UPLOADS_PER_WINDOW`, `GUEST_GLOBAL_UPLOADS_PER_WINDOW`,
+`GUEST_UPLOAD_WINDOW_SECONDS`, and `GUEST_CONCURRENT_UPLOADS`. These controls are
+process-local and assume the single backend worker used by the Compose service.
+
 The reserved profile-update endpoint is `PATCH /api/me`. Profile editing is not yet
 implemented, so ordinary users receive `501`. The guest restriction is already
 enforced first and returns `403`, safeguarding the read-only profile contract

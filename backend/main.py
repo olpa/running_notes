@@ -5,6 +5,7 @@ import os
 import secrets
 import shutil
 import smtplib
+import time
 from datetime import datetime, timedelta, timezone
 from email.mime.audio import MIMEAudio
 from email.mime.multipart import MIMEMultipart
@@ -34,7 +35,12 @@ from autoconfig import (
 )
 from application_routes import safe_application_return_path
 from database import initialize_database
-from guest import expired_guest_note_directories
+from guest import (
+    GuestUploadBusy,
+    GuestUploadLimiter,
+    GuestUploadRateLimited,
+    expired_guest_note_directories,
+)
 from mailbox import (
     DoveadmMailbox,
     MailboxError,
@@ -75,12 +81,23 @@ from users import (
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
 USER_STATE_DIR = STATE_DIR / "users"
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+MAX_GUEST_UPLOAD_BYTES = int(
+    os.environ.get("MAX_GUEST_UPLOAD_BYTES", str(2 * 1024 * 1024))
+)
 MAX_USER_NOTE_BYTES = int(
     os.environ.get("MAX_USER_NOTE_BYTES", str(250 * 1024 * 1024))
 )
 MAX_USER_NOTES_PER_DAY = int(os.environ.get("MAX_USER_NOTES_PER_DAY", "100"))
 GUEST_QUOTA_FACTOR = int(os.environ.get("GUEST_QUOTA_FACTOR", "10"))
 GUEST_RETENTION_HOURS = int(os.environ.get("GUEST_RETENTION_HOURS", "24"))
+GUEST_UPLOADS_PER_WINDOW = int(os.environ.get("GUEST_UPLOADS_PER_WINDOW", "10"))
+GUEST_GLOBAL_UPLOADS_PER_WINDOW = int(
+    os.environ.get("GUEST_GLOBAL_UPLOADS_PER_WINDOW", "60")
+)
+GUEST_UPLOAD_WINDOW_SECONDS = int(
+    os.environ.get("GUEST_UPLOAD_WINDOW_SECONDS", "600")
+)
+GUEST_CONCURRENT_UPLOADS = int(os.environ.get("GUEST_CONCURRENT_UPLOADS", "2"))
 WEB_MESSAGE_LIMIT = int(os.environ.get("WEB_MESSAGE_LIMIT", "100"))
 DOVEADM_URL = os.environ.get("DOVEADM_URL", "http://dovecot:8080/doveadm/v1")
 DOVEADM_PASSWORD = os.environ.get("DOVEADM_PASSWORD", "")
@@ -109,6 +126,15 @@ if WEB_MESSAGE_LIMIT < 1:
 
 if GUEST_RETENTION_HOURS < 1:
     raise ValueError("GUEST_RETENTION_HOURS must be at least 1")
+if not 0 < MAX_GUEST_UPLOAD_BYTES <= MAX_UPLOAD_BYTES:
+    raise ValueError("MAX_GUEST_UPLOAD_BYTES must be between 1 and MAX_UPLOAD_BYTES")
+if min(
+    GUEST_UPLOADS_PER_WINDOW,
+    GUEST_GLOBAL_UPLOADS_PER_WINDOW,
+    GUEST_UPLOAD_WINDOW_SECONDS,
+    GUEST_CONCURRENT_UPLOADS,
+) < 1:
+    raise ValueError("Guest upload controls must be positive")
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
 logging.basicConfig(
@@ -130,6 +156,12 @@ app.add_middleware(
 )
 oauth = create_oauth_registry()
 mailbox = DoveadmMailbox(DOVEADM_URL, DOVEADM_PASSWORD)
+guest_upload_limiter = GuestUploadLimiter(
+    GUEST_UPLOADS_PER_WINDOW,
+    GUEST_GLOBAL_UPLOADS_PER_WINDOW,
+    GUEST_UPLOAD_WINDOW_SECONDS,
+    GUEST_CONCURRENT_UPLOADS,
+)
 
 
 @app.on_event("startup")
@@ -275,7 +307,7 @@ def validate_upload_type(file: UploadFile) -> None:
         raise HTTPException(status_code=415, detail="Unsupported audio type")
 
 
-async def read_limited_upload(file: UploadFile) -> bytes:
+async def read_limited_upload(file: UploadFile, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
     chunks = []
     total = 0
 
@@ -284,7 +316,7 @@ async def read_limited_upload(file: UploadFile) -> bytes:
         if not chunk:
             break
         total += len(chunk)
-        if total > MAX_UPLOAD_BYTES:
+        if total > max_bytes:
             raise HTTPException(status_code=413, detail="Upload too large")
         chunks.append(chunk)
 
@@ -605,7 +637,38 @@ async def record(request: Request, file: UploadFile):
     media_type = file.content_type or ""
     validate_upload_type(file)
 
-    uploaded_audio_bytes = await read_limited_upload(file)
+    guest_slot = False
+    upload_limit = MAX_UPLOAD_BYTES
+    if is_guest_user(user):
+        session_key = str(request.session.get("login_nonce", "guest"))
+        try:
+            guest_upload_limiter.acquire(session_key, time.monotonic())
+            guest_slot = True
+        except GuestUploadRateLimited as exc:
+            raise HTTPException(
+                status_code=429,
+                detail=str(exc),
+                headers={"Retry-After": str(GUEST_UPLOAD_WINDOW_SECONDS)},
+            ) from exc
+        except GuestUploadBusy as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=str(exc),
+                headers={"Retry-After": "5"},
+            ) from exc
+        upload_limit = MAX_GUEST_UPLOAD_BYTES
+
+    try:
+        return await process_recording(user, file, media_type, upload_limit)
+    finally:
+        if guest_slot:
+            guest_upload_limiter.release()
+
+
+async def process_recording(
+    user: dict, file: UploadFile, media_type: str, upload_limit: int
+):
+    uploaded_audio_bytes = await read_limited_upload(file, upload_limit)
     try:
         audio_bytes, duration_seconds = await asyncio.to_thread(
             convert_webm_to_mp3_with_duration, uploaded_audio_bytes
