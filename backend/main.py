@@ -22,7 +22,8 @@ from audio import (
     AudioConversionError,
     AudioTooLongError,
     InvalidAudioRange,
-    convert_webm_to_mp3,
+    convert_webm_to_mp3_with_duration,
+    format_audio_duration,
     parse_audio_byte_range,
 )
 from autoconfig import (
@@ -201,16 +202,26 @@ def current_active_user(request: Request) -> dict:
 
 
 def deliver_via_lmtp(
-    recipient: str, note_id: str, created_at: datetime, audio_bytes: bytes
+    recipient: str,
+    note_id: str,
+    created_at: datetime,
+    audio_bytes: bytes,
+    duration: str,
 ):
     msg = MIMEMultipart()
     msg["From"] = MAIL_FROM
     msg["To"] = recipient
-    msg["Subject"] = f"Voice note {created_at.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    recorded_at = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    msg["Subject"] = f"Voice note ({duration}) {recorded_at}"
     msg["Message-ID"] = f"<note-{note_id}-audio@voiceinbox.local>"
     msg["Date"] = format_datetime(created_at)
 
-    body = MIMEText("Voice note recorded via running-notes.", "plain")
+    body = MIMEText(
+        "Voice note recorded via running-notes.\n\n"
+        f"Recorded: {recorded_at}\n"
+        f"Duration: {duration}\n",
+        "plain",
+    )
     msg.attach(body)
 
     attachment = MIMEAudio(audio_bytes, "mpeg")
@@ -603,8 +614,8 @@ async def record(request: Request, file: UploadFile):
 
     uploaded_audio_bytes = await read_limited_upload(file)
     try:
-        audio_bytes = await asyncio.to_thread(
-            convert_webm_to_mp3, uploaded_audio_bytes
+        audio_bytes, duration_seconds = await asyncio.to_thread(
+            convert_webm_to_mp3_with_duration, uploaded_audio_bytes
         )
     except AudioTooLongError as exc:
         logger.info(
@@ -629,7 +640,8 @@ async def record(request: Request, file: UploadFile):
     audio_path.write_bytes(audio_bytes)
 
     created_at_str = created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
-    subject = f"Voice note {created_at_str}"
+    duration = format_audio_duration(duration_seconds)
+    subject = f"Voice note ({duration}) {created_at_str}"
     metadata = {
         "id": note_id,
         "created_at": created_at_str,
@@ -649,7 +661,9 @@ async def record(request: Request, file: UploadFile):
         media_type,
     )
 
-    deliver_via_lmtp(user["imap_username"], note_id, created_at, audio_bytes)
+    deliver_via_lmtp(
+        user["imap_username"], note_id, created_at, audio_bytes, duration
+    )
 
     return metadata
 

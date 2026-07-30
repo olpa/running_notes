@@ -1,5 +1,6 @@
 import subprocess
 import tempfile
+from math import ceil
 from pathlib import Path
 
 MP3_CHANNELS = 1
@@ -22,6 +23,11 @@ class InvalidAudioRange(ValueError):
 
 
 def convert_webm_to_mp3(webm_bytes: bytes) -> bytes:
+    mp3_bytes, _duration = convert_webm_to_mp3_with_duration(webm_bytes)
+    return mp3_bytes
+
+
+def convert_webm_to_mp3_with_duration(webm_bytes: bytes) -> tuple[bytes, float]:
     with tempfile.TemporaryDirectory(prefix="running-notes-audio-") as temp_dir:
         output_path = Path(temp_dir) / "audio.mp3"
         command = [
@@ -70,7 +76,13 @@ def convert_webm_to_mp3(webm_bytes: bytes) -> bytes:
 
     if not mp3_bytes:
         raise AudioConversionError("Audio conversion failed")
-    return mp3_bytes
+    return mp3_bytes, duration
+
+
+def format_audio_duration(duration_seconds: float) -> str:
+    total_seconds = max(1, ceil(duration_seconds))
+    minutes, seconds = divmod(total_seconds, 60)
+    return f"{minutes:02d}:{seconds:02d}"
 
 
 def _probe_audio_duration(audio_path: Path) -> float:

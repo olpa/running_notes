@@ -8,6 +8,8 @@ from audio import (
     AudioTooLongError,
     InvalidAudioRange,
     convert_webm_to_mp3,
+    convert_webm_to_mp3_with_duration,
+    format_audio_duration,
     parse_audio_byte_range,
 )
 
@@ -36,6 +38,26 @@ class AudioConversionTests(unittest.TestCase):
         self.assertEqual(
             run.call_args_list[0].kwargs["stdout"], subprocess.DEVNULL
         )
+
+    @patch("audio.subprocess.run")
+    def test_returns_measured_duration_with_converted_audio(self, run):
+        def create_output(command, **_kwargs):
+            if command[0] == "ffmpeg":
+                Path(command[-1]).write_bytes(b"mp3-data")
+                return subprocess.CompletedProcess(command, 0, b"", b"")
+            return subprocess.CompletedProcess(command, 0, b"8.125000\n", b"")
+
+        run.side_effect = create_output
+
+        self.assertEqual(
+            convert_webm_to_mp3_with_duration(b"webm-data"),
+            (b"mp3-data", 8.125),
+        )
+
+    def test_formats_audio_duration_for_email(self):
+        self.assertEqual(format_audio_duration(0.1), "00:01")
+        self.assertEqual(format_audio_duration(8.125), "00:09")
+        self.assertEqual(format_audio_duration(60), "01:00")
 
     @patch("audio.subprocess.run")
     def test_rejects_recordings_over_backend_tolerance(self, run):
