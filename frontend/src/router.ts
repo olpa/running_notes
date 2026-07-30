@@ -3,7 +3,7 @@ import type { AppRoute, TabName } from "./contracts.js";
 const TAB_PATHS: Readonly<Record<TabName, string>> = {
   record: "/record",
   messages: "/messages",
-  imap: "/imap",
+  imap: "/mail-client-settings",
   account: "/account",
 };
 

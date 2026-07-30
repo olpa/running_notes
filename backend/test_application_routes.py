@@ -9,7 +9,7 @@ class ApplicationReturnPathTests(unittest.TestCase):
             "/record",
             "/messages",
             "/messages/abc_123-XYZ",
-            "/imap",
+            "/mail-client-settings",
             "/account",
         ):
             with self.subTest(path=path):
