@@ -10,7 +10,8 @@ export class ImapTab extends HTMLElement {
   private currentSettings: ImapSettings | null = null;
   private requestId: symbol | null = null;
   private passwordRequestId: symbol | null = null;
-  private rows!: HTMLElement;
+  private accountRows!: HTMLElement;
+  private serverRows!: HTMLElement;
   private status!: HTMLElement;
   private passwordControls!: HTMLElement;
   private passwordBox!: HTMLElement;
@@ -20,7 +21,8 @@ export class ImapTab extends HTMLElement {
     if (this.initialized) return;
     this.initialized = true;
     this.innerHTML = template;
-    this.rows = queryRequired<HTMLElement>(this, ".settings-rows");
+    this.accountRows = queryRequired<HTMLElement>(this, ".account-settings-rows");
+    this.serverRows = queryRequired<HTMLElement>(this, ".server-settings-rows");
     this.status = queryRequired<HTMLElement>(this, ".status");
     this.passwordControls = queryRequired<HTMLElement>(this, ".password-controls");
     this.passwordBox = queryRequired<HTMLElement>(this, ".password-box");
@@ -60,7 +62,8 @@ export class ImapTab extends HTMLElement {
     } catch (error) {
       if (this.requestId !== requestId) return;
       if (error instanceof ApiError && error.status === 401) return;
-      this.rows.replaceChildren();
+      this.accountRows.replaceChildren();
+      this.serverRows.replaceChildren();
       showStatus(this.status, `IMAP settings unavailable: ${errorMessage(error)}`, "error");
     }
   }
@@ -71,12 +74,14 @@ export class ImapTab extends HTMLElement {
   private renderSettings(settings: ImapSettings): void {
     queryRequired<HTMLElement>(this, ".imap-port").textContent = String(settings.port);
     queryRequired<HTMLElement>(this, ".smtp-port").textContent = String(settings.smtp_port);
-    const children: HTMLElement[] = [
+    const accountChildren: HTMLElement[] = [
       this.createRow("Email address", settings.username),
       this.createRow("Username", settings.username),
     ];
-    if (settings.password) children.push(this.createRow("Password", settings.password));
-    children.push(
+    if (settings.password) {
+      accountChildren.push(this.createRow("Password", settings.password));
+    }
+    const serverChildren: HTMLElement[] = [
       this.createTitle("Incoming"),
       this.createRow("Server type", "IMAP"),
       this.createRow("Server", settings.host),
@@ -90,8 +95,9 @@ export class ImapTab extends HTMLElement {
       this.createRow("Port", String(settings.smtp_port)),
       this.createRow("Connection security", "STARTTLS"),
       this.createRow("Authentication method", "Normal password"),
-    );
-    this.rows.replaceChildren(...children);
+    ];
+    this.accountRows.replaceChildren(...accountChildren);
+    this.serverRows.replaceChildren(...serverChildren);
   }
 
   private createTitle(text: string): HTMLHeadingElement {
@@ -166,7 +172,8 @@ export class ImapTab extends HTMLElement {
     this.passwordRequestId = null;
     this.user = null;
     this.currentSettings = null;
-    this.rows.replaceChildren();
+    this.accountRows.replaceChildren();
+    this.serverRows.replaceChildren();
     this.clearNewPassword();
     showStatus(this.status, "");
   }
