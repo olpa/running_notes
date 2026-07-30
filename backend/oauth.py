@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 
 from authlib.integrations.starlette_client import OAuth
@@ -14,6 +15,10 @@ SESSION_COOKIE_NAME = "running_notes_session"
 SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
 SESSION_SAME_SITE = "lax"
 MIN_SESSION_SECRET_LENGTH = 32
+MICROSOFT_TENANT_ID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
 class UnknownOAuthProviderError(ValueError):
@@ -70,6 +75,13 @@ def create_oauth_registry() -> OAuth:
     return oauth
 
 
+def oauth_claims_options(provider: str) -> dict | None:
+    _validate_provider(provider)
+    if provider != "microsoft":
+        return None
+    return {"iss": {"validate": _microsoft_issuer_matches_tenant}}
+
+
 def get_oauth_client(oauth: OAuth, provider: str):
     _validate_provider(provider)
     client = oauth.create_client(provider)
@@ -114,6 +126,18 @@ def session_cookie_secure() -> bool:
 
 def new_session_nonce() -> str:
     return secrets.token_urlsafe(16)
+
+
+def _microsoft_issuer_matches_tenant(claims: dict, issuer: object) -> bool:
+    tenant_id = claims.get("tid")
+    if (
+        not isinstance(tenant_id, str)
+        or not MICROSOFT_TENANT_ID_PATTERN.fullmatch(tenant_id)
+        or not isinstance(issuer, str)
+    ):
+        return False
+    expected_issuer = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
+    return secrets.compare_digest(issuer, expected_issuer)
 
 
 def _email_verified(provider: str, userinfo: dict) -> bool:

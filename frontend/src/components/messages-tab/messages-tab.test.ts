@@ -87,6 +87,7 @@ describe("rn-messages-tab", () => {
     tab.api = new ApiClient({ fetchImpl });
     tab.setUser({
       email: "runner@example.com",
+      auth_provider: "google",
       is_guest: false,
       guest_retention_hours: null,
       can_change_imap_password: true,
@@ -120,6 +121,7 @@ describe("rn-messages-tab", () => {
     document.body.append(tab);
     tab.setUser({
       email: "guest@example.com",
+      auth_provider: null,
       is_guest: true,
       guest_retention_hours: 24,
       can_change_imap_password: false,

@@ -206,16 +206,27 @@ def get_user_by_id(user_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT id, provider_email, status, imap_username, is_guest
+            SELECT users.id, users.provider_email, users.status,
+                   users.imap_username, users.is_guest,
+                   (
+                       SELECT oauth_identities.provider
+                       FROM oauth_identities
+                       WHERE oauth_identities.user_id = users.id
+                       ORDER BY oauth_identities.created_at
+                       LIMIT 1
+                   ) AS auth_provider
             FROM users
-            WHERE id = ?
+            WHERE users.id = ?
             """,
             (user_id,),
         ).fetchone()
 
     if row is None:
         return None
-    return serialize_user(row)
+    return {
+        **serialize_user(row),
+        "auth_provider": row["auth_provider"],
+    }
 
 
 def get_user_by_email(email: str) -> dict | None:

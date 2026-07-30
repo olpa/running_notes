@@ -52,6 +52,7 @@ from oauth import (
     extract_userinfo_identity,
     get_oauth_client,
     new_session_nonce,
+    oauth_claims_options,
     session_cookie_secure,
     session_secret,
 )
@@ -520,7 +521,10 @@ async def oauth_callback(provider: str, request: Request):
     )
     try:
         client = get_oauth_client(oauth, provider)
-        token = await client.authorize_access_token(request)
+        token = await client.authorize_access_token(
+            request,
+            claims_options=oauth_claims_options(provider),
+        )
         provider_subject, email, email_verified = extract_userinfo_identity(
             provider, token["userinfo"]
         )

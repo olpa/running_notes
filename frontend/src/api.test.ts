@@ -7,6 +7,7 @@ describe("ApiClient", () => {
       Response.json({
         user: {
           email: "runner@example.com",
+          auth_provider: "google",
           is_guest: false,
           guest_retention_hours: null,
           can_change_imap_password: true,
@@ -18,6 +19,7 @@ describe("ApiClient", () => {
     await expect(api.getSession()).resolves.toEqual({
       user: {
         email: "runner@example.com",
+        auth_provider: "google",
         is_guest: false,
         guest_retention_hours: null,
         can_change_imap_password: true,

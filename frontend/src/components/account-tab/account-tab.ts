@@ -19,7 +19,7 @@ export class AccountTab extends HTMLElement {
   }
 
   setUser(user: User | null): void {
-    this.email.textContent = user?.email || "";
+    this.email.textContent = user ? formatSignedInIdentity(user) : "";
   }
 
   activate(): void {}
@@ -29,6 +29,14 @@ export class AccountTab extends HTMLElement {
     this.setUser(null);
     showStatus(this.status, "");
   }
+}
+
+function formatSignedInIdentity(user: User): string {
+  if (user.is_guest) return `${user.email} (Guest)`;
+  if (!user.auth_provider) return user.email;
+  const provider = user.auth_provider.charAt(0).toUpperCase()
+    + user.auth_provider.slice(1);
+  return `${user.email} via ${provider}`;
 }
 
 customElements.define("rn-account-tab", AccountTab);
