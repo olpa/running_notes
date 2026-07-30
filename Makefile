@@ -4,9 +4,22 @@ FRONTEND_IMAGE := running-notes-frontend:$(IMAGE_TAG)
 BACKEND_IMAGE := running-notes-be:$(IMAGE_TAG)
 SMTP_DISCARD_IMAGE := running-notes-smtp-discard:$(IMAGE_TAG)
 
-.PHONY: production-images
+.PHONY: production-images test-backend test-guest-imap-acl
 production-images:
 	docker pull $(DOVECOT_IMAGE)
 	docker build --pull --tag $(FRONTEND_IMAGE) --file frontend/Dockerfile .
 	docker build --pull --tag $(BACKEND_IMAGE) ./backend
 	docker build --pull --tag $(SMTP_DISCARD_IMAGE) ./smtp_discard
+
+test-backend:
+	docker compose run --rm --no-deps \
+		--workdir /tests \
+		-e PYTHONPATH=/tests \
+		-v $(CURDIR)/backend:/tests:ro \
+		backend python -m unittest discover -s /tests -p 'test_*.py'
+
+test-guest-imap-acl:
+	docker compose run --rm --no-deps \
+		-e PYTHONPATH=/app \
+		-v $(CURDIR)/scripts:/integration:ro \
+		backend python /integration/test_guest_imap_acl.py
