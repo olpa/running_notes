@@ -14,6 +14,8 @@ export class RecordTab extends HTMLElement {
   private apiClient: ApiClient | null = null;
   private button!: HTMLButtonElement;
   private cancelButton!: HTMLButtonElement;
+  private cancelConfirmation!: HTMLElement;
+  private discardButton!: HTMLButtonElement;
   private status!: HTMLElement;
   private progressContainer!: HTMLElement;
   private progressBar!: HTMLProgressElement;
@@ -36,6 +38,8 @@ export class RecordTab extends HTMLElement {
     this.innerHTML = template;
     this.button = queryRequired<HTMLButtonElement>(this, ".record-button");
     this.cancelButton = queryRequired<HTMLButtonElement>(this, ".cancel-recording");
+    this.cancelConfirmation = queryRequired<HTMLElement>(this, ".cancel-confirmation");
+    this.discardButton = queryRequired<HTMLButtonElement>(this, ".discard-recording");
     this.status = queryRequired<HTMLElement>(this, ".status");
     this.progressContainer = queryRequired<HTMLElement>(this, ".recording-progress");
     this.progressBar = queryRequired<HTMLProgressElement>(this, ".recording-progress-bar");
@@ -44,7 +48,13 @@ export class RecordTab extends HTMLElement {
       void this.toggleRecording();
     });
     this.cancelButton.addEventListener("click", () => {
-      this.requestCancel();
+      this.armCancellation();
+    });
+    queryRequired<HTMLButtonElement>(this, ".continue-recording").addEventListener("click", () => {
+      this.continueRecording();
+    });
+    this.discardButton.addEventListener("click", () => {
+      this.discardRecording();
     });
     this.setState("disabled");
   }
@@ -202,32 +212,38 @@ export class RecordTab extends HTMLElement {
     this.recorder.stop();
   }
 
-  private requestCancel(): void {
-    const recorder = this.recorder;
-    if (!recorder || recorder.state !== "recording") return;
-    if (this.cancelArmed) {
-      this.discardedRecorders.add(recorder);
-      this.resetCancelConfirmation();
-      this.stopRecording();
-      return;
-    }
-
+  private armCancellation(): void {
+    if (this.recorder?.state !== "recording" || this.cancelArmed) return;
     this.cancelArmed = true;
-    this.cancelButton.textContent = "Discard recording?";
-    this.cancelButton.disabled = true;
-    showStatus(this.status, "This recording will not be saved.", "error");
+    this.cancelButton.hidden = true;
+    this.cancelConfirmation.hidden = false;
+    this.discardButton.disabled = true;
     this.cancelEnableTimeout = window.setTimeout(() => {
       this.cancelEnableTimeout = null;
       if (this.cancelArmed && this.recorder?.state === "recording") {
-        this.cancelButton.disabled = false;
+        this.discardButton.disabled = false;
       }
     }, CANCEL_CONFIRMATION_DELAY_MS);
     this.cancelResetTimeout = window.setTimeout(() => {
-      this.resetCancelConfirmation();
-      if (this.recorder?.state === "recording") {
-        showStatus(this.status, "Recording...", "busy");
-      }
+      this.continueRecording();
     }, CANCEL_CONFIRMATION_DELAY_MS + CANCEL_CONFIRMATION_WINDOW_MS);
+  }
+
+  private continueRecording(): void {
+    if (!this.cancelArmed) return;
+    this.resetCancelConfirmation();
+    if (this.recorder?.state === "recording") {
+      showStatus(this.status, "Recording...", "busy");
+    }
+  }
+
+  private discardRecording(): void {
+    const recorder = this.recorder;
+    if (!this.cancelArmed || this.discardButton.disabled ||
+        !recorder || recorder.state !== "recording") return;
+    this.discardedRecorders.add(recorder);
+    this.resetCancelConfirmation();
+    this.stopRecording();
   }
 
   private resetCancelConfirmation(): void {
@@ -240,7 +256,9 @@ export class RecordTab extends HTMLElement {
       this.cancelResetTimeout = null;
     }
     this.cancelArmed = false;
-    this.cancelButton.textContent = "Cancel recording";
+    this.cancelConfirmation.hidden = true;
+    this.discardButton.disabled = true;
+    this.cancelButton.hidden = this.recorderState !== "recording";
   }
 
   private stopRecordingProgress(): void {

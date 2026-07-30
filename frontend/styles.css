@@ -212,6 +212,29 @@ p { margin: 0; }
 
 .record-button.recording { background: var(--danger); }
 
+.cancel-confirmation {
+  background: #fff7f7;
+  border: 1px solid #efb3b3;
+  border-radius: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  width: min(100%, 420px);
+}
+
+.cancel-confirmation p {
+  margin: 0 0 10px;
+}
+
+.cancel-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cancel-confirmation-actions button {
+  flex: 1;
+}
+
 .recording-hint {
   color: var(--muted);
   margin: 0 0 12px;

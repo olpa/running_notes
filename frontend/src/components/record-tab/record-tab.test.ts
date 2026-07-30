@@ -133,28 +133,29 @@ describe("rn-record-tab", () => {
     await Promise.resolve();
 
     const cancel = tab.querySelector<HTMLButtonElement>(".cancel-recording");
+    const confirmation = tab.querySelector<HTMLElement>(".cancel-confirmation");
+    const discard = tab.querySelector<HTMLButtonElement>(".discard-recording");
     expect(cancel?.hidden).toBe(false);
     expect(tab.querySelector(".record-button")?.textContent).toBe("Stop and save");
 
     cancel?.click();
-    expect(cancel?.textContent).toBe("Discard recording?");
-    expect(cancel?.disabled).toBe(true);
-    expect(tab.querySelector(".status")?.textContent).toBe(
-      "This recording will not be saved.",
-    );
+    expect(cancel?.hidden).toBe(true);
+    expect(confirmation?.hidden).toBe(false);
+    expect(discard?.disabled).toBe(true);
 
     vi.advanceTimersByTime(599);
-    expect(cancel?.disabled).toBe(true);
+    expect(discard?.disabled).toBe(true);
     vi.advanceTimersByTime(1);
-    expect(cancel?.disabled).toBe(false);
+    expect(discard?.disabled).toBe(false);
 
-    cancel?.click();
+    discard?.click();
     await Promise.resolve();
     await Promise.resolve();
 
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(FakeMediaRecorder.latest?.stopCalls).toHaveBeenCalledTimes(1);
     expect(cancel?.hidden).toBe(true);
+    expect(confirmation?.hidden).toBe(true);
     expect(tab.querySelector(".record-button")?.textContent).toBe("Record");
     expect(tab.querySelector(".status")?.textContent).toBe(
       "Recording cancelled. Nothing was saved.",
@@ -176,9 +177,29 @@ describe("rn-record-tab", () => {
 
     vi.advanceTimersByTime(4_600);
 
-    expect(cancel?.textContent).toBe("Cancel recording");
-    expect(cancel?.disabled).toBe(false);
+    expect(cancel?.hidden).toBe(false);
+    expect(tab.querySelector<HTMLElement>(".cancel-confirmation")?.hidden).toBe(true);
     expect(tab.querySelector(".status")?.textContent).toBe("Recording...");
+    expect(FakeMediaRecorder.latest?.stopCalls).not.toHaveBeenCalled();
+  });
+
+  it("lets the user explicitly continue recording", async () => {
+    vi.useFakeTimers();
+    const tab = document.createElement("rn-record-tab");
+    document.body.append(tab);
+    tab.api = new ApiClient({ fetchImpl: vi.fn() });
+    tab.setEnabled(true);
+
+    tab.querySelector<HTMLButtonElement>(".record-button")?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    tab.querySelector<HTMLButtonElement>(".cancel-recording")?.click();
+    tab.querySelector<HTMLButtonElement>(".continue-recording")?.click();
+
+    expect(tab.querySelector<HTMLButtonElement>(".cancel-recording")?.hidden).toBe(false);
+    expect(tab.querySelector<HTMLElement>(".cancel-confirmation")?.hidden).toBe(true);
+    expect(tab.querySelector(".status")?.textContent).toBe("Recording...");
+    expect(FakeMediaRecorder.latest?.state).toBe("recording");
     expect(FakeMediaRecorder.latest?.stopCalls).not.toHaveBeenCalled();
   });
 });
