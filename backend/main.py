@@ -360,11 +360,19 @@ def enforce_user_quota(user: dict, upload_bytes: int, created_at: datetime) -> N
     daily_note_count, total_bytes = user_note_usage(
         user_notes_dir(user["id"]), created_at
     )
-    quota_factor = GUEST_QUOTA_FACTOR if is_guest_user(user) else 1
-    if daily_note_count >= MAX_USER_NOTES_PER_DAY * quota_factor:
+    note_limit, byte_limit = user_quota_limits(user)
+    if daily_note_count >= note_limit:
         raise HTTPException(status_code=429, detail="Daily note quota exceeded")
-    if total_bytes + upload_bytes > MAX_USER_NOTE_BYTES * quota_factor:
+    if total_bytes + upload_bytes > byte_limit:
         raise HTTPException(status_code=403, detail="Storage quota exceeded")
+
+
+def user_quota_limits(user: dict) -> tuple[int, int]:
+    quota_factor = GUEST_QUOTA_FACTOR if is_guest_user(user) else 1
+    return (
+        MAX_USER_NOTES_PER_DAY * quota_factor,
+        MAX_USER_NOTE_BYTES * quota_factor,
+    )
 
 
 def cleanup_expired_guest_recordings(now: datetime | None = None) -> None:

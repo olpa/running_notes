@@ -180,6 +180,18 @@ docker compose exec dovecot doveadm user <imap_username>
 
 Unknown users, inactive users, disabled password hashes, and invalid passwords should fail.
 
+Run the committed guest ACL integration test against the development Compose
+stack:
+
+```
+make test-guest-imap-acl
+```
+
+The test delivers a disposable message, confirms the guest can list, select,
+search, and fetch, then verifies that STORE, APPEND, COPY, MOVE, EXPUNGE, mailbox
+creation, and mailbox deletion are denied. It removes its temporary message and
+mailbox afterward.
+
 ## Recorder uploads
 
 Recording uploads require a signed web session. The frontend displays recording progress and automatically stops at 30 seconds. Audio is accepted only as WebM (`audio/webm`) and capped by `MAX_UPLOAD_BYTES`, which defaults to 25 MiB. The backend independently rejects converted recordings longer than 33 seconds, allowing a small margin for browser and encoder timing. It converts accepted uploads to mono, 16 kHz, 48 kbps CBR MP3 without ID3 tags and stores them under `state/users/<user-id>/notes/<note-id>/`. Note IDs use the UTC timestamp plus a random suffix. Each user is limited to `MAX_USER_NOTES_PER_DAY` notes per UTC day (default 100) and `MAX_USER_NOTE_BYTES` total stored audio (default 250 MiB).
