@@ -2,7 +2,7 @@ import re
 
 
 APPLICATION_RETURN_PATH = re.compile(
-    r"^/(?:record|imap|account|messages(?:/[A-Za-z0-9_-]+)?)$"
+    r"^/(?:record|mail-client-settings|account|messages(?:/[A-Za-z0-9_-]+)?)$"
 )
 
 

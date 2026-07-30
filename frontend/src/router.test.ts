@@ -3,7 +3,7 @@ import { parseRoute, pathForMessage, pathForTab } from "./router.js";
 
 describe("router", () => {
   it("maps top-level paths to tabs", () => {
-    expect(parseRoute("/imap")).toEqual({
+    expect(parseRoute("/mail-client-settings")).toEqual({
       tab: "imap",
       messageKey: null,
       messageRequested: false,
